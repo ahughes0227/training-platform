@@ -43,3 +43,9 @@ For each live gate above, record the GCP project and region, configuration commi
 - Deleted the object, then deleted the bucket. The Console showed the object deletion notice, no live objects, "Deleted 1 bucket", and no live buckets in the project list. Both deletions initially failed with a transient Console error and succeeded on retry. The seven-day soft-delete policy can retain recoverable data until expiry.
 - No Vertex job, GPU, container build, MLflow server, Ray Serve cluster, or other paid compute was started. Actual billing charges were not available in the Console during this test; do not infer a measured cost or mark any full-platform live gate complete from this smoke test.
 - Authenticated Cloud Shell activation was rejected by automatic approval review because it exposes credentials and enables broader cloud mutations. The application code was therefore not run against GCP. A separate authorized credential path and cloud configuration are required for the Vertex handshake and remaining acceptance gates.
+
+## Trainer container test attempt, 2026-09-27
+
+- On the local macOS ARM host, `.venv/bin/python -m defect_platform.trainer.validate` passed the synthetic optimizer and checkpoint reload check on CPU. `.venv/bin/python -m pytest -q tests/test_trainer_runtime.py tests/test_runtime_release.py tests/test_trainer_end_to_end.py` passed all 13 focused tests.
+- `.venv/bin/python -m defect_platform.trainer.validate --require-gpu` exited with `GPU validation requested but CUDA is unavailable`, as expected on this host.
+- No Docker, Podman, GPU container runtime, CUDA GPU, configured pinned PyTorch CUDA base image digest, or completed certification record was available. The image was not built or run; the Container and Vertex runtime gates above remain open. The repository's runtime release template still contains placeholders.
