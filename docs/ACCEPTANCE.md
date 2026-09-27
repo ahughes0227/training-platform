@@ -26,3 +26,11 @@ Cloud acceptance cannot pass until the GCP project, region, quotas, service acco
 ## Live evidence to record
 
 For each live gate above, record the GCP project and region, configuration commit, exact image digest and DINOv3 weight checksum, dataset version, run ID, Vertex job link, MLflow model version, Loki query or Cloud Logging link, approver, RayService revision, observed inference response, and rollback result. Record actual cloud cost against the accepted estimate. Do not mark the platform accepted until all live gates have passed.
+
+## GCP read-only preflight, 2026-09-27
+
+- Project selected in Google Cloud Console: `prefab-winter-256318` (My First Project). The signed-in user has the project Owner role.
+- The Cloud Storage bucket page explicitly says, "You can use Cloud Storage after you enable billing." The console also says the free trial has ended. The billing detail page failed to load, so no billing-account status beyond the Storage message was inferred.
+- The enabled-services page listed 27 APIs and did not include Vertex AI. A filtered quotas view yielded no Vertex AI rows; GPU quota remains unverified.
+- The user authorized a maximum of USD 5 for testing. No cloud resources were created and no paid jobs were started. Billing enablement is a user-managed prerequisite; the platform's per-run cap does not cap always-on infrastructure costs.
+- Live acceptance remains blocked by billing, disabled Vertex AI API, unverified GPU quota, missing project settings and DINOv3 weights, and absent certified container/runtime digests. Recheck each gate after billing is enabled before incurring any cost.
