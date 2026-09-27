@@ -1,0 +1,28 @@
+# Bounded GCP CPU smoke test of the real trainer image. This build does not
+# push an image or certify the GPU/Vertex runtime. Supply a verified PyTorch
+# CUDA base image URI pinned with @sha256: when submitting the build.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    id: build-trainer
+    args:
+      - build
+      - --file
+      - infra/docker/trainer.Dockerfile
+      - --build-arg
+      - TRAINING_BASE_IMAGE=${_TRAINING_BASE_IMAGE}
+      - --tag
+      - defect-trainer-smoke:local
+      - .
+  - name: gcr.io/cloud-builders/docker
+    id: validate-trainer
+    args:
+      - run
+      - --rm
+      - --entrypoint
+      - python
+      - defect-trainer-smoke:local
+      - -m
+      - defect_platform.trainer.validate
+timeout: 1200s
+substitutions:
+  _TRAINING_BASE_IMAGE: UNSET

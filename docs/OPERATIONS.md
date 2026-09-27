@@ -14,6 +14,20 @@ OpenTofu creates private buckets, Artifact Registry, Cloud SQL, Cloud Run servic
 
 The trainer image should contain code and locked dependencies. It should not download mutable model weights during its build. Each experiment pins the DINOv3 checkpoint location and checksum separately. If any stage fails, stop at that stage and hand evidence to its owner; a training failure does not automatically rebuild the image.
 
+### Bounded GCP image smoke test
+
+`infra/cloudbuild/trainer-smoke.yaml` builds the trainer Dockerfile on Cloud Build's default machine and runs its synthetic CPU validation inside the image. It has a 20-minute overall timeout and does not push an image. It checks container packaging only; GPU and Vertex certification still require the runtime release flow above. Supply a verified PyTorch CUDA base image URI pinned to a digest and an approved Google Cloud credential path, then run from the repository root:
+
+```sh
+gcloud builds submit . \
+  --project=PROJECT_ID \
+  --region=us-central1 \
+  --config=infra/cloudbuild/trainer-smoke.yaml \
+  --substitutions=_TRAINING_BASE_IMAGE=PYTORCH_CUDA_IMAGE@sha256:DIGEST
+```
+
+The Cloud Build API must be enabled. Check the billing account and the current [Cloud Build pricing](https://cloud.google.com/build/pricing) before submission; the build timeout bounds build minutes but does not cap ancillary charges. Record the build ID, log URL, source commit, exact base digest, observed validation JSON, and actual billed cost in `docs/ACCEPTANCE.md`.
+
 ## Experiments and releases
 
 The controller first stores an idempotent run and checks its cost cap. Workflows submits the Vertex CustomJob and monitors it independently of the CLI or agent. The trainer writes evaluation and model artifacts under the configured run root and logs to MLflow. Terminal state is recorded even if the user has closed the CLI.

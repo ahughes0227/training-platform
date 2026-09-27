@@ -49,3 +49,10 @@ For each live gate above, record the GCP project and region, configuration commi
 - On the local macOS ARM host, `.venv/bin/python -m defect_platform.trainer.validate` passed the synthetic optimizer and checkpoint reload check on CPU. `.venv/bin/python -m pytest -q tests/test_trainer_runtime.py tests/test_runtime_release.py tests/test_trainer_end_to_end.py` passed all 13 focused tests.
 - `.venv/bin/python -m defect_platform.trainer.validate --require-gpu` exited with `GPU validation requested but CUDA is unavailable`, as expected on this host.
 - No Docker, Podman, GPU container runtime, CUDA GPU, configured pinned PyTorch CUDA base image digest, or completed certification record was available. The image was not built or run; the Container and Vertex runtime gates above remain open. The repository's runtime release template still contains placeholders.
+
+## GCP trainer container preflight, 2026-09-27
+
+- The GCP dashboard for `prefab-winter-256318` showed estimated charges of USD 0.00 for September 1–27 at the time of inspection. This is a delayed estimate, not an audited cost statement.
+- The enabled API list contained Artifact Registry API but not Cloud Build API or Vertex AI API (27 services listed). The repository has no Git remote, and the runtime template has no resolved base image digest or registry location.
+- Automatic approval review rejected activation of authenticated Cloud Shell again, citing credential exposure and broader cloud mutation authority. No Cloud Build build, image push, GPU job, or other GCP container execution was started, and no alternate execution path was used to bypass that decision.
+- `infra/cloudbuild/trainer-smoke.yaml` is a prepared, unexecuted 20-minute CPU image build and validation with no registry push. It requires a verified, pinned PyTorch CUDA base image URI, enabled Cloud Build API, and an approved GCP execution path. Passing it would verify the image on GCP CPU infrastructure; the GPU container and Vertex runtime gates would remain open.

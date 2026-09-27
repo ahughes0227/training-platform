@@ -1,3 +1,4 @@
+.gcloudignore
 .git
 .venv
 **/__pycache__
@@ -12,10 +13,12 @@ mlruns
 dist
 build
 *.egg-info
-tests
-docs
 projects
 certifications
+tests
+docs
 infra/.terraform
 infra/*.tfstate*
 infra/*.tfvars
+*.pem
+*.key
