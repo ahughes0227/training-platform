@@ -1,0 +1,25 @@
+# Copy to your observability deployment and set LOKI_OTLP_ENDPOINT and optional
+# LOKI_AUTH_HEADER there. Export logs to Loki's native OTLP HTTP endpoint.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch: {}
+exporters:
+  otlphttp/loki:
+    endpoint: ${env:LOKI_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${env:LOKI_AUTH_HEADER}
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]

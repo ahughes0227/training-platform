@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "defect-training-platform"
+version = "0.1.0"
+description = "Config-driven DINOv3 defect classification platform"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "PyYAML>=6,<7",
+  "typer>=0.15,<1",
+  "rich>=13,<15",
+  "Pillow>=10,<13",
+]
+
+[project.optional-dependencies]
+agent = ["litellm>=1.60,<2"]
+cloud = ["google-cloud-aiplatform>=1.75,<2", "google-cloud-storage>=2.18,<4", "google-cloud-bigquery>=3.25,<5", "google-cloud-workflows>=1.16,<2", "mlflow>=2.20,<4", "psycopg[binary]>=3.2,<4", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+mlflow-server = ["mlflow>=2.20,<4", "psycopg[binary]>=3.2,<4", "google-cloud-storage>=2.18,<4"]
+data = ["webdataset>=0.2.100,<2", "imagehash>=4.3,<5"]
+train = ["torch>=2.5,<3", "torchvision>=0.20,<1", "transformers>=4.56,<6", "scikit-learn>=1.5,<2", "numpy>=1.26,<3"]
+serve = ["ray[serve]>=2.40,<3", "fastapi>=0.115,<1", "psycopg[binary]>=3.2,<4"]
+telemetry = ["opentelemetry-api>=1.29,<2", "opentelemetry-sdk>=1.29,<2", "opentelemetry-exporter-otlp-proto-http>=1.29,<2"]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+
+[project.scripts]
+defect = "defect_platform.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/defect_platform"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100

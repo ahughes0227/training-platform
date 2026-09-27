@@ -1,0 +1,13 @@
+project_id              = "CHANGE_ME"
+region                  = "CHANGE_ME"
+gke_zone                = "CHANGE_ME"
+dataset_bucket_name     = "CHANGE_ME"
+artifact_bucket_name    = "CHANGE_ME"
+control_image_digest    = "REGISTRY/CONTROL@sha256:CHANGE_ME"
+mlflow_image_digest     = "REGISTRY/MLFLOW@sha256:CHANGE_ME"
+gpu_machine_type        = "CHANGE_ME"
+gpu_accelerator_type    = "CHANGE_ME"
+litellm_model           = "CHANGE_ME"
+cli_invoker_members     = ["user:CHANGE_ME@example.com"]
+release_operator_members = ["user:CHANGE_ME@example.com"]
+# Supply db_password through TF_VAR_db_password or a secrets-capable runner.

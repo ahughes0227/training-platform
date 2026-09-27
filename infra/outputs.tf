@@ -1,0 +1,12 @@
+output "dataset_bucket" { value = google_storage_bucket.datasets.name }
+output "artifact_bucket" { value = google_storage_bucket.artifacts.name }
+output "release_ledger_uri" { value = "gs://${google_storage_bucket.artifacts.name}/releases" }
+output "artifact_registry_repository" { value = google_artifact_registry_repository.images.id }
+output "control_url" { value = google_cloud_run_v2_service.control.uri }
+output "mlflow_url" { value = google_cloud_run_v2_service.mlflow.uri }
+output "gke_cluster" { value = google_container_cluster.ray.name }
+output "trainer_service_account" { value = google_service_account.trainer.email }
+output "dataset_publisher_service_account" { value = google_service_account.dataset.email }
+output "runtime_builder_service_account" { value = google_service_account.runtime.email }
+output "certifier_service_account" { value = google_service_account.certifier.email }
+output "training_workflow" { value = google_workflows_workflow.train.id }

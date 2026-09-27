@@ -1,0 +1,21 @@
+# Run `defect runtime certify templates/runtime-release.yaml --output certifications/RUNTIME_ID.yaml`.
+# The candidate image tag is built once, validated on local GPU, pushed, and
+# certified against Vertex. Use a separate file for each source/runtime release.
+runtime_id: CHANGE_ME
+runtime_version: CHANGE_ME
+source_commit: CHANGE_ME_40_CHARACTER_GIT_SHA
+image_tag: REGION-docker.pkg.dev/PROJECT/REPOSITORY/trainer:CHANGE_ME
+training_base_image_digest: REGISTRY/PYTORCH_CUDA_BASE@sha256:CHANGE_ME
+gcs_probe_uri: gs://ARTIFACT_BUCKET/runtime-probes
+job:
+  project: CHANGE_ME
+  region: CHANGE_ME
+  machine_type: CHANGE_ME
+  accelerator_type: CHANGE_ME
+  accelerator_count: 1
+  service_account: CHANGE_ME
+  staging_uri: gs://ARTIFACT_BUCKET/staging
+  network: null
+  max_run_hours: 0.25
+  estimated_hourly_usd: 0
+  max_run_cost_usd: 1

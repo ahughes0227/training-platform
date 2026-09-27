@@ -1,0 +1,11 @@
+project: "CHANGE_ME"
+region: "CHANGE_ME"
+machine_type: "CHANGE_ME"
+accelerator_type: "CHANGE_ME"
+accelerator_count: 1
+service_account: "CHANGE_ME"
+staging_uri: "gs://CHANGE_ME/runs/{{ slug }}"
+network: null
+max_run_hours: 8
+estimated_hourly_usd: 0
+max_run_cost_usd: 1

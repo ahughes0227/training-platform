@@ -1,0 +1,17 @@
+object_slug: "{{ slug }}"
+sources:
+  - kind: csv
+    location: "CHANGE_ME.csv"
+    image_uri_column: image_uri
+    label_column: label
+    sample_id_column: null
+    group_id_column: null
+    image_root: null
+label_mapping: {}
+split:
+  train: 0.7
+  validation: 0.15
+  test: 0.15
+  seed: 42
+output_uri: "gs://CHANGE_ME/datasets/{{ slug }}"
+shard_max_samples: 1000

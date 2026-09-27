@@ -1,0 +1,11 @@
+.git
+.venv
+.pytest_cache
+.ruff_cache
+workspace
+projects
+tests
+docs
+infra/.terraform
+infra/*.tfstate*
+**/__pycache__

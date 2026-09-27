@@ -1,0 +1,22 @@
+experiment_id: "{{ slug }}-baseline"
+object_slug: "{{ slug }}"
+dataset_version_id: "CHANGE_ME"
+runtime_id: "CHANGE_ME"
+model:
+  backbone: facebook/dinov3-vits16-pretrain-lvd1689m
+  weights_uri: "gs://CHANGE_ME/dinov3-vits16.bin"
+  weights_sha256: "CHANGE_ME"
+  image_size: 256
+  hidden_dim: 256
+  dropout: 0.2
+  unfreeze_last_n: 0
+epochs: 10
+batch_size: 32
+learning_rate: 0.001
+optimizer: adamw
+loss: cross_entropy
+focal_gamma: 2.0
+horizontal_flip_probability: 0.5
+class_weights: {}
+seed: 42
+max_review_error_rate: null

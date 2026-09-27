@@ -1,0 +1,6 @@
+slug: "{{ slug }}"
+display_name: "{{ display_name }}"
+description: "{{ description }}"
+classes:
+  - "{{ first_class }}"
+  - "{{ second_class }}"

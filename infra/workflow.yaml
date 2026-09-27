@@ -1,0 +1,118 @@
+# The controller persists an idempotent run before this workflow starts. This
+# execution owns the wait, polling, and terminal update; no LLM session waits.
+main:
+  params: [args]
+  steps:
+    - initialize:
+        assign:
+          - run_id: ${args.run_id}
+          - max_polls: ${args.max_polls}
+          - poll_count: 0
+    - submit_vertex:
+        try:
+          call: http.post
+          args:
+            url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/vertex-submit"}
+            auth:
+              type: OIDC
+            body: {}
+          result: submitted
+        except:
+          as: submit_error
+          steps:
+            - record_submit_failure:
+                call: http.post
+                args:
+                  url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+                  auth:
+                    type: OIDC
+                  body:
+                    state: failed
+                    failure_code: VERTEX_SUBMISSION_FAILED
+                    failure_message: ${submit_error.message}
+            - stop_after_submit_failure:
+                return: ${run_id}
+    - record_running:
+        call: http.post
+        args:
+          url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+          auth:
+            type: OIDC
+          body:
+            state: running
+            vertex_job_name: ${submitted.body.vertex_job_name}
+    - poll_vertex:
+        try:
+          call: googleapis.aiplatform.v1.projects.locations.customJobs.get
+          args:
+            name: ${submitted.body.vertex_job_name}
+            region: ${args.region}
+          result: job
+        except:
+          as: poll_error
+          steps:
+            - record_poll_failure:
+                call: http.post
+                args:
+                  url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+                  auth:
+                    type: OIDC
+                  body:
+                    state: failed
+                    failure_code: WORKFLOW_POLL_FAILED
+                    failure_message: ${poll_error.message}
+                    vertex_job_name: ${submitted.body.vertex_job_name}
+            - stop_after_poll_failure:
+                return: ${run_id}
+    - classify_state:
+        switch:
+          - condition: ${job.state == "JOB_STATE_SUCCEEDED"}
+            next: record_success
+          - condition: ${job.state == "JOB_STATE_FAILED" or job.state == "JOB_STATE_CANCELLED" or job.state == "JOB_STATE_EXPIRED"}
+            next: record_failure
+          - condition: ${poll_count >= max_polls}
+            next: record_timeout
+    - wait:
+        call: sys.sleep
+        args:
+          seconds: 60
+    - increment:
+        assign:
+          - poll_count: ${poll_count + 1}
+        next: poll_vertex
+    - record_success:
+        call: http.post
+        args:
+          url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+          auth:
+            type: OIDC
+          body:
+            state: succeeded
+            vertex_job_name: ${submitted.body.vertex_job_name}
+        next: done
+    - record_failure:
+        call: http.post
+        args:
+          url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+          auth:
+            type: OIDC
+          body:
+            state: failed
+            failure_code: TRAINING_JOB_FAILED
+            failure_message: ${job.state}
+            vertex_job_name: ${submitted.body.vertex_job_name}
+        next: done
+    - record_timeout:
+        call: http.post
+        args:
+          url: ${sys.get_env("CONTROL_URL") + "/runs/" + run_id + "/events"}
+          auth:
+            type: OIDC
+          body:
+            state: failed
+            failure_code: TRAINING_JOB_FAILED
+            failure_message: "Vertex job exceeded configured workflow polling window"
+            vertex_job_name: ${submitted.body.vertex_job_name}
+        next: done
+    - done:
+        return: ${run_id}
