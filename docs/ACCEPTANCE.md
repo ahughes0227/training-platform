@@ -27,10 +27,19 @@ Cloud acceptance cannot pass until the GCP project, region, quotas, service acco
 
 For each live gate above, record the GCP project and region, configuration commit, exact image digest and DINOv3 weight checksum, dataset version, run ID, Vertex job link, MLflow model version, Loki query or Cloud Logging link, approver, RayService revision, observed inference response, and rollback result. Record actual cloud cost against the accepted estimate. Do not mark the platform accepted until all live gates have passed.
 
-## GCP read-only preflight, 2026-09-27
+## GCP preflight, 2026-09-27
 
 - Project selected in Google Cloud Console: `prefab-winter-256318` (My First Project). The signed-in user has the project Owner role.
-- The Cloud Storage bucket page explicitly says, "You can use Cloud Storage after you enable billing." The console also says the free trial has ended. The billing detail page failed to load, so no billing-account status beyond the Storage message was inferred.
+- Before the user enabled billing, the Cloud Storage bucket page said, "You can use Cloud Storage after you enable billing." The console also said the free trial had ended. The billing detail page failed to load. A later bucket creation succeeded, so the earlier Storage restriction no longer blocked this test; the billing-account details remain unverified.
 - The enabled-services page listed 27 APIs and did not include Vertex AI. A filtered quotas view yielded no Vertex AI rows; GPU quota remains unverified.
-- The user authorized a maximum of USD 5 for testing. No cloud resources were created and no paid jobs were started. Billing enablement is a user-managed prerequisite; the platform's per-run cap does not cap always-on infrastructure costs.
-- Live acceptance remains blocked by billing, disabled Vertex AI API, unverified GPU quota, missing project settings and DINOv3 weights, and absent certified container/runtime digests. Recheck each gate after billing is enabled before incurring any cost.
+- The user authorized a maximum of USD 5 for testing. The platform's per-run cap does not cap always-on infrastructure costs.
+- Live acceptance remains blocked by the disabled Vertex AI API, unverified GPU quota, missing project settings and DINOv3 weights, and absent certified container/runtime digests. Recheck each gate before incurring any job or infrastructure cost.
+
+## GCP minimal storage smoke test, 2026-09-27
+
+- Project: `prefab-winter-256318`. Created private Standard bucket `defect-platform-smoke-prefab-winter-256318-20260927` in `us-east1` using the Google Cloud Console. The bucket had uniform access, public access prevention, and seven-day soft delete.
+- Uploaded one synthetic 75-byte text object, `defect-platform-gcp-smoke-20260927.txt`. The Console reported "1 file successfully uploaded" and listed it as 75 B, `text/plain`, and not public. Its local SHA-256 before upload was `cb591dc6a066e2c7df4de4fdf10566c774c79580676787bb12ca2c039fa5325f`.
+- Opened the authenticated object read URL in the browser and observed the exact original three-line content. This verifies a small Console-mediated GCS write and read, not the platform's GCS publication code or a byte-level downloaded checksum.
+- Deleted the object, then deleted the bucket. The Console showed the object deletion notice, no live objects, "Deleted 1 bucket", and no live buckets in the project list. Both deletions initially failed with a transient Console error and succeeded on retry. The seven-day soft-delete policy can retain recoverable data until expiry.
+- No Vertex job, GPU, container build, MLflow server, Ray Serve cluster, or other paid compute was started. Actual billing charges were not available in the Console during this test; do not infer a measured cost or mark any full-platform live gate complete from this smoke test.
+- Authenticated Cloud Shell activation was rejected by automatic approval review because it exposes credentials and enables broader cloud mutations. The application code was therefore not run against GCP. A separate authorized credential path and cloud configuration are required for the Vertex handshake and remaining acceptance gates.
