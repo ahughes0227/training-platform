@@ -56,3 +56,51 @@ For each live gate above, record the GCP project and region, configuration commi
 - The enabled API list contained Artifact Registry API but not Cloud Build API or Vertex AI API (27 services listed). The repository has no Git remote, and the runtime template has no resolved base image digest or registry location.
 - Automatic approval review rejected activation of authenticated Cloud Shell again, citing credential exposure and broader cloud mutation authority. No Cloud Build build, image push, GPU job, or other GCP container execution was started, and no alternate execution path was used to bypass that decision.
 - `infra/cloudbuild/trainer-smoke.yaml` is a prepared, unexecuted 20-minute CPU image build and validation with no registry push. It requires a verified, pinned PyTorch CUDA base image URI, enabled Cloud Build API, and an approved GCP execution path. Passing it would verify the image on GCP CPU infrastructure; the GPU container and Vertex runtime gates would remain open.
+
+## GCP CPU trainer container smoke test passed, 2026-09-27
+
+The user subsequently approved the authenticated Cloud Shell route, repository upload, Cloud Build API enablement, and bounded CPU container test under the existing USD 5 total limit. The earlier execution-path rejection and disabled Cloud Build API observations above are historical; Cloud Build was enabled and this test actually ran.
+
+| Evidence | Observed value |
+| --- | --- |
+| Project / region | `prefab-winter-256318` / `us-central1` |
+| Source commit | `cbf9dd19ba09df5a1c4236f620e83d20f73d7a94` |
+| Uploaded Git archive SHA-256 | `783a0bb40cf09f63ddee5446285dc5fcaa62e6048e03995c025b34b6a3405ada`, matched by Cloud Shell `sha256sum` |
+| Build configuration | `infra/cloudbuild/trainer-smoke.yaml`, overall timeout `1200s` |
+| Base image | `pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755` |
+| Build | [8ce8af21-0e2d-419c-ab26-1eb168fb1df0](https://console.cloud.google.com/cloud-build/builds;region=us-central1/8ce8af21-0e2d-419c-ab26-1eb168fb1df0?project=prefab-winter-256318), `SUCCESS` |
+| Start / finish UTC | `2026-09-27T23:42:15.078344943Z` / `2026-09-27T23:48:13.284218Z` |
+| Console durations | Overall `00:05:58`; image build `00:05:36`; validation `00:00:18` |
+| Built local image ID | `6c75341e42ff`, tagged `defect-trainer-smoke:local`; no registry image was pushed |
+| Runtime packages observed in build log | `torch==2.14.0`, `torchvision==0.29.0`, `transformers==5.17.0` |
+| Validation command | `docker run --rm --entrypoint python defect-trainer-smoke:local -m defect_platform.trainer.validate` |
+
+Submitted from the verified source snapshot using:
+
+```sh
+gcloud builds submit . \
+  --project=prefab-winter-256318 \
+  --region=us-central1 \
+  --config=infra/cloudbuild/trainer-smoke.yaml \
+  --substitutions=_TRAINING_BASE_IMAGE=pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755 \
+  --async
+```
+
+Both build steps finished successfully. The validation printed:
+
+```json
+{
+  "success": true,
+  "device": "cpu",
+  "loss": 0.670745849609375,
+  "checkpoint": "/tmp/defect-trainer-check-dk7c3b59/synthetic-validation.pt",
+  "cuda_name": null,
+  "gpu_required": false
+}
+```
+
+The validation uses the synthetic backbone and proves container startup, an optimizer step, and checkpoint write/reload. Its checkpoint was temporary inside the removed test container. It does not prove DINOv3 weight loading, CUDA execution, GPU compatibility, Vertex handshake, real dataset training, MLflow, or serving. No runtime certification record was issued; the Container and Vertex runtime gates remain open. In particular, the CUDA base and newly installed locked PyTorch must still be tested together on a GPU.
+
+At the published default `e2-standard-2` rate of USD 0.006/minute, the observed duration implies approximately USD 0.0358 for build compute before free-tier credits. The full 20-minute cap would have bounded build compute to USD 0.12. Storage, logs, and network are additional; these are estimates, not measured billing charges. The dashboard still displayed estimated USD 0.00, which can lag usage. [Cloud Build pricing](https://cloud.google.com/build/pricing).
+
+Logs remain in the linked build record. Downloading a local raw-log copy timed out, so no downloaded-log checksum is claimed. The temporary source object was staged at `gs://prefab-winter-256318_cloudbuild/source/1790552530.0085-6e2042d5470c45fdbc2e972459644cb0.tgz`; its bucket has a seven-day (`604800s`) soft-delete policy. `gcloud storage rm` reported `Completed 1/1`, and the subsequent live bucket listing was empty. The source can remain recoverable until soft-delete expiry; the empty staging bucket and build logs are retained. No registry image, GPU job, or serving deployment was created.
