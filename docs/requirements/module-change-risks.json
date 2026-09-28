@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "title": "Risks and regression detection for explicit dataset, training, and infrastructure modules",
   "date": "2026-09-28",
   "implementation_baseline": "5a7817f5449162c1329fb2af348c99c8477f760c",
@@ -51,7 +51,24 @@
       "source_paths": [
         "tests/test_control.py"
       ],
-      "unnoticed_exposure_index": 0.18
+      "unnoticed_exposure_index": 0.18,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Primary integration owner; contract CI",
+        "controls": [
+          "Version the public input/output schemas and document supported producer/consumer pairs.",
+          "Make the shared contract package independent of module internals; require compatibility checks and serialized fixtures for every public interface.",
+          "Validate at each boundary and reject unsupported versions before side effects; use a reviewed migration for intentional breaking changes."
+        ],
+        "positive_verification": "Every supported version pair reads valid fixtures and completes its intended handoff.",
+        "negative_verification": "Remove/rename required fields, change enums, and mix unsupported versions; the boundary rejects them before jobs or accepted writes.",
+        "remaining_risk": "An omitted compatibility case or an incorrectly designed migration can still break consumers.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.8,
+        "target_residual_risk": 0.16,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-02",
@@ -73,7 +90,24 @@
       "source_paths": [
         "tests/test_dinov3_integration.py"
       ],
-      "unnoticed_exposure_index": 0.396
+      "unnoticed_exposure_index": 0.396,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Dataset, trainer, and serving owners; primary integration review",
+        "controls": [
+          "Bind ordered classes, label rules, group/split assignments, preprocessing, pooling, calibration, and selection policy to semantic fingerprints.",
+          "Use fixed reference fixtures across build, train, reload, and serve with declared numeric tolerances and actual DINOv3 architecture checks.",
+          "Gate integration on parity; intentional semantic changes receive a new version and explicit reviewed evidence rather than inheriting the old acceptance."
+        ],
+        "positive_verification": "The same accepted fixture produces matching classes/splits/preprocessing and consistent selected model, predictions, and review flags across all paths.",
+        "negative_verification": "Reorder class indices, include register tokens, alter normalization/splits, or use test labels for calibration; semantic checks fail and the affected output cannot be accepted.",
+        "remaining_risk": "Reference fixtures cannot exhaust real data variation, stochastic execution, or all semantically wrong policies; this remains the highest target risk.",
+        "target_likelihood": 0.3,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.27,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-03",
@@ -95,7 +129,24 @@
       "source_paths": [
         "tests/test_dataset.py"
       ],
-      "unnoticed_exposure_index": 0.189
+      "unnoticed_exposure_index": 0.189,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Dataset publisher/verifier and admission service",
+        "controls": [
+          "Bind human review to the exact source/preview fingerprint; revalidate on publication.",
+          "Publish create-only immutable artifacts with a final commit manifest containing full checksums and exact storage generations; protect accepted prefixes using IAM/retention policy.",
+          "Resolve accepted versions from the authoritative catalog and read the committed generations; verify object/classes/integrity before dispatch and consumption."
+        ],
+        "positive_verification": "Training reads the exact committed dataset and source-bound decisions under its intended identity.",
+        "negative_verification": "Change a source after review, replace a shard during verification, swap an object/version, or attempt overwrite/delete; reject or deny with unchanged accepted generations and zero unauthorized jobs.",
+        "remaining_risk": "Incorrect human labels, overlooked near duplicates, compromised trusted administrators, or storage-policy defects remain possible.",
+        "target_likelihood": 0.15,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.14,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-04",
@@ -117,7 +168,24 @@
       "source_paths": [
         "src/defect_platform/trainer/runner.py"
       ],
-      "unnoticed_exposure_index": 0.378
+      "unnoticed_exposure_index": 0.378,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Trainer artifact exporter and control-plane finalizer",
+        "controls": [
+          "Write outputs into a staged run prefix and produce a manifest binding model, preprocessing, calibration, metrics, lineage, and checksums.",
+          "Publish the protected completion marker only after full validation; consumers require the exact committed manifest.",
+          "Keep the run finalizing until outputs are verified; register an eligible candidate idempotently from the accepted result, not merely from Vertex process success."
+        ],
+        "positive_verification": "A complete bundle reloads, evaluates, and registers one coherent candidate linked to the run.",
+        "negative_verification": "Interrupt each upload/finalization step, truncate artifacts, substitute metadata, or return job success early; no incomplete result becomes successful or release-eligible.",
+        "remaining_risk": "A verifier defect or semantically incorrect but complete output can still pass; semantic and lineage gates are also required.",
+        "target_likelihood": 0.15,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.14,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-05",
@@ -139,7 +207,24 @@
       "source_paths": [
         "tests/test_runtime_release.py"
       ],
-      "unnoticed_exposure_index": 0.284
+      "unnoticed_exposure_index": 0.284,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Runtime Engineer, Runtime Certifier, and authoritative catalog owner",
+        "controls": [
+          "Pin source, dependency lock, base image, candidate digest, software inventory, and supported hardware scope.",
+          "Separate building/publishing from existing-digest certification; authenticate immutable gate evidence in the server-side catalog with revocation policy.",
+          "Validate actual DINOv3 and the corrected fine-tuning path inside the exact GPU image and Vertex handshake; ordinary experiments resolve that record without builds or installs."
+        ],
+        "positive_verification": "The current source's exact image passes required GPU/Vertex gates and is reused by ordinary experiments.",
+        "negative_verification": "Use an old/mutated/uncertified digest, revoked scope, or unsupported GPU count; reject before training. Intercept ordinary build/push/install/certification calls and verify none occur.",
+        "remaining_risk": "Hardware/driver drift, untested shapes, dependency vulnerabilities, and revocation propagation can still invalidate compatibility.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-06",
@@ -161,7 +246,24 @@
       "source_paths": [
         "pyproject.toml"
       ],
-      "unnoticed_exposure_index": 0.144
+      "unnoticed_exposure_index": 0.144,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Runtime Engineer and module dependency owners",
+        "controls": [
+          "Declare an acyclic dependency direction: shared contracts, module public interfaces, controller coordination, and scoped adapters.",
+          "Lock dependency sets and package resources; validate import boundaries so module internals are not imported across ownership.",
+          "Install clean environments and run public entry points/tests in the actual component images before release."
+        ],
+        "positive_verification": "Each module runs with only its declared dependencies; the integrated fixture and container entry points work outside the checkout.",
+        "negative_verification": "Remove an undeclared dependency/template, introduce an import cycle/internal import, or rely on checkout-relative files; CI rejects the release.",
+        "remaining_risk": "Platform-specific packaging behavior and unrepresented optional configurations can still escape the clean-environment matrix.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.6,
+        "target_residual_risk": 0.12,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-07",
@@ -183,7 +285,24 @@
       "source_paths": [
         "tests/test_role_guard.py"
       ],
-      "unnoticed_exposure_index": 0.504
+      "unnoticed_exposure_index": 0.504,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Cloud policy administrator and control-plane/harness owners",
+        "controls": [
+          "Treat client/assistant records as proposals; resolve certification, approval, prices, and accepted artifacts from authenticated protected services.",
+          "Use distinct least-privilege identities and constrained operational brokers; keep privileged cloud credentials out of assistant/module capabilities.",
+          "Enforce effects beneath hooks with filesystem/process/service/cloud boundaries; deny unknown roles and policy-check failures; verify direct and indirect paths."
+        ],
+        "positive_verification": "Every role's allowed counterpart works with only its intended scoped identity and resources.",
+        "negative_verification": "Forge authority fields and attempt forbidden operations through CLI, SDK, subprocess, alternate endpoints, and impersonation; audit and after-state show no unauthorized effects or stronger credentials.",
+        "remaining_risk": "Policy misconfiguration, trusted-service compromise, administrator actions, and new bypass paths remain consequential.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-08",
@@ -205,7 +324,24 @@
       "source_paths": [
         "tests/test_control.py"
       ],
-      "unnoticed_exposure_index": 0.378
+      "unnoticed_exposure_index": 0.378,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Control service, durable state store, and dispatch broker",
+        "controls": [
+          "Persist immutable intent/fingerprint and a transactional dispatch outbox with unique idempotency keys.",
+          "Serialize dispatch ownership with revision/fencing checks; bind cloud jobs to stable platform IDs and reconcile them before another creation attempt.",
+          "Use provider idempotency where actually supported; block redispatch of uncertain creation outcomes until authoritative reconciliation, with bounded recovery and accounting."
+        ],
+        "positive_verification": "Sequential, concurrent, and interrupted retries resolve one effective run, job, reservation, and result.",
+        "negative_verification": "Crash before/after creation, lose the response, expire an ownership lease, and race requests; no blind second paid job is created and uncertain outcomes remain visible.",
+        "remaining_risk": "External creation and local transactions are not automatically atomic; provider visibility delays and unresolved outcomes can delay recovery.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-09",
@@ -227,7 +363,24 @@
       "source_paths": [
         "infra/workflow.yaml"
       ],
-      "unnoticed_exposure_index": 0.405
+      "unnoticed_exposure_index": 0.405,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Durable workflow, run store, and operations reconciler",
+        "controls": [
+          "Record observed cloud state with authenticated events, revision checks, immutable job identity, and explicit finalization/uncertainty status.",
+          "On cancellation/deadline, request actual cancellation and reconcile until externally confirmed terminal; keep uncertain jobs accounted for.",
+          "Run an independent recovery reconciler and alert on orphaned/stopping jobs; reject contradictory or replayed transitions."
+        ],
+        "positive_verification": "Observed job state, artifact readiness, and platform state agree; a canceled job is confirmed terminal.",
+        "negative_verification": "Drop/replay callbacks, stop the workflow, lose poll/cancel responses, and delay artifacts; no false running/success/stopped claim or unaccounted live job follows.",
+        "remaining_risk": "Cloud outages and delayed cancellation can prolong resource use; correct uncertainty handling does not guarantee instantaneous shutdown.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-10",
@@ -249,7 +402,24 @@
       "source_paths": [
         "src/defect_platform/control/controller.py"
       ],
-      "unnoticed_exposure_index": 0.364
+      "unnoticed_exposure_index": 0.364,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Budget admission service and platform operator",
+        "controls": [
+          "Use operator-owned conservative price profiles covering preparation/scans, builds, GPU/CPU/disk, retries, transfers, storage, logs, and retained resources.",
+          "Reserve campaign and per-run estimated exposure atomically before dispatch; recheck changed shapes and account for uncertain jobs and concurrent work.",
+          "Enforce execution/scan/scale/duration limits, headroom, cleanup policy, and delayed billing reconciliation; reject unknown/unbounded cost."
+        ],
+        "positive_verification": "Eligible work has a complete trusted estimate and reservation within the accepted campaign policy.",
+        "negative_verification": "Submit zero caller prices, omit a resource category, alter shapes after review, exhaust retry limits, or race reservations; paid dispatch is denied and reservations remain coherent.",
+        "remaining_risk": "Provider billing lag, price changes, retained storage, and delayed cancellation remain uncertain; an estimate/reservation is not an instantaneous hard bill cap.",
+        "target_likelihood": 0.25,
+        "target_impact": 0.8,
+        "target_residual_risk": 0.2,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-11",
@@ -271,7 +441,24 @@
       "source_paths": [
         "tests/test_mlflow_registration.py"
       ],
-      "unnoticed_exposure_index": 0.245
+      "unnoticed_exposure_index": 0.245,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Primary integration owner, result finalizer, and MLflow/release adapters",
+        "controls": [
+          "Define one immutable lineage chain spanning object, dataset, weights, runtime, experiment/run, result digest, registry version, and release.",
+          "Generate metadata from accepted records instead of independently supplied copies; reconcile references and checksums at each handoff.",
+          "Reject missing/mismatched lineage before candidate eligibility, promotion, or serving; preserve an append-only evidence index."
+        ],
+        "positive_verification": "An object/run/model/release can be traced end to end to the exact accepted artifacts.",
+        "negative_verification": "Swap each ID/hash, replay another object's result, or lose a metadata write; no wrongly attributed eligible candidate or release is produced.",
+        "remaining_risk": "A shared verifier bug or compromised authoritative records can make internally consistent but false lineage.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.7,
+        "target_residual_risk": 0.14,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-12",
@@ -293,7 +480,24 @@
       "source_paths": [
         "tests/test_release_lifecycle.py"
       ],
-      "unnoticed_exposure_index": 0.473
+      "unnoticed_exposure_index": 0.473,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Authenticated human approval service, release controller, and serving operator",
+        "controls": [
+          "Bind explicit authenticated human approval to the exact staged release fingerprint and scope; candidate writers cannot change production aliases.",
+          "Pin immutable model artifact/version and serving digest; verify readiness and model identity before traffic cutover.",
+          "Serialize release transitions and persist recoverable intent; reconcile alias, deployment, traffic, and ledger, with verified rollback to a prior approved release."
+        ],
+        "positive_verification": "An approved exact model serves healthy inference, and an approved rollback restores the expected prior model.",
+        "negative_verification": "Forge/replay approval, change aliases or artifacts, race promotions/rollback, and fail every cutover stage; no unapproved traffic or falsely completed release remains.",
+        "remaining_risk": "Control-service compromise, hidden health defects, and multi-system outages can still cause temporary inconsistency or disruption.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.9,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-13",
@@ -315,7 +519,24 @@
       "source_paths": [
         "src/defect_platform/telemetry.py"
       ],
-      "unnoticed_exposure_index": 0.384
+      "unnoticed_exposure_index": 0.384,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Shared telemetry library, module owners, and observability operator",
+        "controls": [
+          "Require a versioned event schema and propagated object/run/job/dataset/runtime/release/trace context at every boundary.",
+          "Redact secrets/private payloads; emit structured stdout and configure bounded export/buffering with explicit delivery gaps.",
+          "Gate live integration on searchable Loki/collector evidence, correlated traces/metrics, independent failure signals, and context-isolation checks."
+        ],
+        "positive_verification": "All required lifecycle and failure events are correctly correlated at the configured sink without secret canaries.",
+        "negative_verification": "Lose the collector, drop events, mix concurrent contexts, insert secret canaries, and exhaust buffers; detect the gaps/violations without false delivered status or unbounded resources.",
+        "remaining_risk": "Instrumentation omissions, sink outages, and retention gaps can still remove evidence; logs do not substitute for independent state checks.",
+        "target_likelihood": 0.25,
+        "target_impact": 0.6,
+        "target_residual_risk": 0.15,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-14",
@@ -337,7 +558,24 @@
       "source_paths": [
         "src/defect_platform/contracts.py"
       ],
-      "unnoticed_exposure_index": 0.448
+      "unnoticed_exposure_index": 0.448,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Contract integration owner and state-store/operator",
+        "controls": [
+          "Maintain versioned schemas, compatibility rules, and explicit transformations; preserve immutable accepted records and provenance.",
+          "Use additive rollout before retiring old readers; bind active runs to their original supported contracts and prevent silent reinterpretation.",
+          "Back up state, dry-run historical/active-run replay in isolation, and verify restore/reconciliation before irreversible migration."
+        ],
+        "positive_verification": "Supported old/new pairs and restored active runs preserve identity and behavior without duplicate work.",
+        "negative_verification": "Introduce unsupported versions, fail mid-migration, replay stale state, and resume active runs; no accepted history is overwritten or completed job resubmitted.",
+        "remaining_risk": "Undocumented historical records, rollback limitations, and uncommon active-run states can still complicate recovery.",
+        "target_likelihood": 0.25,
+        "target_impact": 0.8,
+        "target_residual_risk": 0.2,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-15",
@@ -359,7 +597,24 @@
       "source_paths": [
         "tests/test_guided_cli.py"
       ],
-      "unnoticed_exposure_index": 0.14
+      "unnoticed_exposure_index": 0.14,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "CLI/template/navigation owner and project reviewer",
+        "controls": [
+          "Preserve one guided entry point and generate readable project/run/model indexes from authoritative records.",
+          "Version templates and validate configuration/link/command shapes; expose actionable failures without leaking module plumbing into routine use.",
+          "Exercise realistic briefs and human navigation tasks from setup through review, status, artifacts, and recovery."
+        ],
+        "positive_verification": "A non-programmer can complete the documented flow and locate all expected evidence.",
+        "negative_verification": "Break a template/link, remove a required field, change a command, or interrupt setup; validation catches it and the user receives a truthful next action.",
+        "remaining_risk": "Ambiguous instructions and user expectations cannot be fully captured by automated fixture checks.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.5,
+        "target_residual_risk": 0.1,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-16",
@@ -381,7 +636,24 @@
       "source_paths": [
         "infra/workflow.yaml"
       ],
-      "unnoticed_exposure_index": 0.22
+      "unnoticed_exposure_index": 0.22,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Control-plane and GCP Workflows owners",
+        "controls": [
+          "Persist setup/accepted intent and dispatch through runtime services with durable workflow/event handoffs.",
+          "Give the assistant proposal capabilities only; require no agent session, polling loop, or execution lease after admission.",
+          "Prove detached execution and recovery after CLI, assistant, and control-service interruption."
+        ],
+        "positive_verification": "An admitted job runs/finalizes or reconciles while the assistant and CLI are closed.",
+        "negative_verification": "Terminate the agent and restart services mid-run; no repeated agent questions, token-consuming wait loop, or lost execution authority occurs.",
+        "remaining_risk": "Workflow/control-service availability can delay recovery, though it should not require assistant participation.",
+        "target_likelihood": 0.15,
+        "target_impact": 0.8,
+        "target_residual_risk": 0.12,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-17",
@@ -403,7 +675,24 @@
       "source_paths": [
         "src/defect_platform/trainer/model.py"
       ],
-      "unnoticed_exposure_index": 0.24
+      "unnoticed_exposure_index": 0.24,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Dataset/trainer/runtime owners and cost/performance operator",
+        "controls": [
+          "Pass immutable references across modules instead of copying bulk artifacts; use bounded streaming, shard sizing, and checksum-keyed caching where allowed.",
+          "Avoid redundant full reads while preserving integrity; enforce transfer, memory, concurrency, timeout, and scale limits.",
+          "Benchmark representative workloads against accepted latency/resource/cost profiles and record regressions before production release."
+        ],
+        "positive_verification": "Measured representative workloads meet the accepted profile with traceable transfer/resource usage.",
+        "negative_verification": "Increase artifact sizes/concurrency, force cache misses, or introduce duplicate downloads; enforce limits and fail the performance/cost gate.",
+        "remaining_risk": "Real input distributions, cache behavior, cloud contention, and variable network/storage costs keep this target uncertain.",
+        "target_likelihood": 0.3,
+        "target_impact": 0.6,
+        "target_residual_risk": 0.18,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-18",
@@ -425,7 +714,24 @@
       "source_paths": [
         "tests/test_trainer_runtime.py"
       ],
-      "unnoticed_exposure_index": 0.126
+      "unnoticed_exposure_index": 0.126,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Failure taxonomy owner and each owning engineering role",
+        "controls": [
+          "Use typed failure records containing stage, owner, retryability, original cause, artifact/job identity, and permitted next action.",
+          "Preserve causes through adapters; unknown errors remain explicitly unclassified and cannot authorize cross-role repair.",
+          "Gate retries/repair/build actions on classification plus actor capability; test failures through real module boundaries."
+        ],
+        "positive_verification": "Each known fault reaches the correct owner with usable original evidence and a permitted response.",
+        "negative_verification": "Wrap/mislabel errors or present trainer faults as packaging/quota faults; no unauthorized edit, blind retry, or unrelated rebuild follows.",
+        "remaining_risk": "Novel failures and ambiguous external messages still need human diagnosis.",
+        "target_likelihood": 0.2,
+        "target_impact": 0.6,
+        "target_residual_risk": 0.12,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-19",
@@ -447,7 +753,24 @@
       "source_paths": [
         "src/defect_platform/trainer/inference.py"
       ],
-      "unnoticed_exposure_index": 0.4
+      "unnoticed_exposure_index": 0.4,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Trainer/model-loader, runtime sandbox, and artifact policy owners",
+        "controls": [
+          "Accept approved non-executable tensor artifacts with trusted provenance and integrity verification before deserialization; reject unsafe/unapproved formats and remote code.",
+          "Enforce contained download/extraction paths, source allowlists, byte/dimension/resource limits, and bundle schema.",
+          "Load/infer under least privilege with scoped credentials and constrained filesystem/network access; verify malicious canaries in an isolated environment."
+        ],
+        "positive_verification": "Approved portable bundles load and infer with the intended resource/identity restrictions.",
+        "negative_verification": "Use substituted checkpoint content, unsafe serializer canaries, traversal paths, and hostile image data; reject before execution/escaped writes and inspect filesystem/credentials afterward.",
+        "remaining_risk": "Parser vulnerabilities, dependency supply-chain compromise, and sandbox defects remain possible with severe consequences.",
+        "target_likelihood": 0.15,
+        "target_impact": 1,
+        "target_residual_risk": 0.15,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     },
     {
       "id": "MR-20",
@@ -469,7 +792,44 @@
       "source_paths": [
         "infra/main.tf"
       ],
-      "unnoticed_exposure_index": 0.448
+      "unnoticed_exposure_index": 0.448,
+      "mitigation": {
+        "status": "planned_unimplemented_unverified",
+        "owner": "Infrastructure operator and readiness/admission service",
+        "controls": [
+          "Separate desired deployment configuration from observed capability output; record environment/resource revisions, identity, endpoints, policy scope, and observation time.",
+          "Validate OpenTofu/providers/plans and reconcile actual resources/drift; restrict trusted publication of capability records.",
+          "Recheck readiness/access and relevant quota/constraints at admission; stale/unknown facts fail closed or enter explicit uncertainty with bounded recovery."
+        ],
+        "positive_verification": "The selected environment and execution identity match observed resources and can perform the intended bounded operation.",
+        "negative_verification": "Revoke access, alter endpoints/regions/resources, change quotas, or replay stale capabilities; revalidation detects drift before unauthorized work or records capacity uncertainty.",
+        "remaining_risk": "GPU quota does not guarantee available capacity; cloud drift and availability can change after a successful preflight.",
+        "target_likelihood": 0.25,
+        "target_impact": 0.8,
+        "target_residual_risk": 0.2,
+        "actual_residual_risk": null,
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+      }
     }
-  ]
+  ],
+  "mitigation_assessment": {
+    "version": "1.0",
+    "date": "2026-09-28",
+    "reviewed_repository_revision": "b45ca11e56a53a07897aca52b1d26ba038fde72c",
+    "status": "planned_only_no_implementation_or_verification_claim",
+    "method": "Target residual R = target L × original I, rounded half up to two decimals. Original impacts are retained. Likelihood reductions require preventive controls plus verified gates. Detection alone is not multiplied into R.",
+    "conditions": [
+      "All controls in the specific mitigation are implemented and reviewed.",
+      "Positive and negative checks pass at required local/live scopes with independently checked effects.",
+      "Compatibility, active-run, resource, and recovery assumptions are satisfied.",
+      "No contradictory evidence remains; the owner reviews the score against actual results."
+    ],
+    "limits": [
+      "Targets are subjective conditional planning estimates, not measured probabilities or guarantees.",
+      "No mitigation implementation, mutation campaign, paid resource, or new live acceptance is claimed.",
+      "Current risk and current detection ratings remain unchanged until evidence supports reassessment.",
+      "Scores are not added or averaged into an overall incident probability.",
+      "Prerequisite infrastructure/endpoints/weights/profiles and authorized campaign budget are still required for live verification."
+    ]
+  }
 }

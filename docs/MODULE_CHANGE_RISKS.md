@@ -376,3 +376,7 @@ The current USD 5 test authorization is not authorization for an unrestricted mi
 - Score improvements require recorded observations. More test files, passing mocks, or narrower scope alone do not establish stronger real-world detection.
 
 The module structure is worth adopting because it provides clear locations for these controls and checks. The benefit depends on enforcing the contracts and observing failures at their real boundaries. Moving directories alone does not resolve the listed gaps.
+
+## 9. Mitigation plans and residual risk targets
+
+The [mitigation plan](MODULE_RISK_MITIGATIONS.md) defines preventive controls, owners, positive and negative verification, remaining risk, and a conditional residual risk target for each of these 20 risks. Current risk and detection scores above remain unchanged until implementation and observed evidence justify reassessment.
