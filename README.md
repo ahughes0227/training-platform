@@ -38,6 +38,6 @@ The repository stores code, templates, and small readable project configs. Datas
 
 ## Development
 
-Requires Python 3.12 or 3.13 and `uv`. Run `uv sync --extra dev --extra train --extra data` for local tests, then `uv run --extra dev --extra train --extra data pytest`. Install the `cloud`, `agent`, and `serve` extras for their corresponding environments.
+Requires Python 3.12 or 3.13 and `uv`. For the complete local acceptance suite, install the `dev`, `train`, `data`, `cloud`, and `serve` extras: `uv sync --extra dev --extra train --extra data --extra cloud --extra serve`. Run `uv run --extra dev --extra train --extra data --extra cloud --extra serve pytest`. The Ray integration test starts local workers and a loopback HTTP listener; cloud SDK tests use local instrumentation and require no GCP credentials. Install the `agent` extra when connecting guided setup to LiteLLM.
 
 Cloud endpoints and credentials are intentionally unset in the template. Live deployment and acceptance remain blocked until they are supplied and verified.
