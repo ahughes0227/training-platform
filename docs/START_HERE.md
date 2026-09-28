@@ -2,6 +2,8 @@
 
 This platform is for one task: name the class of a defect that has already been found and cropped. Give each inspected object type its own project. The platform keeps a record of what images, labels, settings, software image, and model produced each result.
 
+For the complete system contract and acceptance criteria, read [the full requirements document](REQUIREMENTS.md). It distinguishes required behavior, prevention checks, current evidence, and unfinished work.
+
 ## What you provide
 
 - An object name and at least two defect classes.

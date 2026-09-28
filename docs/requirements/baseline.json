@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-09-28",
+  "implementation_source_commit": "dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15",
+  "scope": "local",
+  "command": ".venv/bin/python -m pytest -q -ra",
+  "exit_code": 0,
+  "passed": 55,
+  "skipped": 0,
+  "warnings": 2,
+  "duration_seconds": 5.62,
+  "warning_categories": [
+    "StarletteDeprecationWarning: httpx TestClient usage",
+    "SADeprecationWarning: MLflow SQLAlchemy noload strategy"
+  ],
+  "observation": "The local suite passed on the unchanged implementation while authoring this requirements baseline.",
+  "limits": [
+    "No fresh cloud execution during this documentation task.",
+    "Actual DINOv3 fixture uses generated local weights.",
+    "Cloud-client doubles do not prove live authorization or durability.",
+    "Full live positive and negative acceptance remains incomplete."
+  ],
+  "source_of_prior_live_evidence": "docs/evidence/2026-09-27-gpu-container/README.md"
+}
