@@ -10,6 +10,8 @@ The local suite passes 55 tests, including actual DINOv3 training with generated
 
 Read the [full system requirements](docs/REQUIREMENTS.md) for 150 requirements, their rationale and enforcement, and the positive and negative evidence needed for acceptance.
 
+See the [module-change risk assessment](docs/MODULE_CHANGE_RISKS.md) for risks and regression-detection scores for separating datasets, training, and infrastructure.
+
 1. Read [the plain-language guide](docs/START_HERE.md).
 2. Copy `.env.example` and `templates/object/` to a new `projects/<object-name>/` folder, use `defect object init`, or start with `defect train guided` after cloud settings are configured.
 3. Connect a CSV manifest or BigQuery table containing image locations and labels. The CLI previews unresolved labels before a dataset is published.

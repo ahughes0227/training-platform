@@ -1,0 +1,475 @@
+{
+  "schema_version": 1,
+  "title": "Risks and regression detection for explicit dataset, training, and infrastructure modules",
+  "date": "2026-09-28",
+  "implementation_baseline": "5a7817f5449162c1329fb2af348c99c8477f760c",
+  "status": "prospective_assessment_no_module_refactor_or_cloud_tests_performed",
+  "assumptions": [
+    "One repository; module separation does not by itself require independent network services or repositories.",
+    "Durable control plane retains admission, budget, dispatch, state, retry, cancellation, and reconciliation authority.",
+    "Approval/release/serving remain separately authorized.",
+    "Assess migration and initial integrated release using the currently evidenced controls.",
+    "No model algorithm or accepted dataset semantics are intentionally changed."
+  ],
+  "scoring": {
+    "risk": "R = L × I. L is relative likelihood of regression during this migration; I is relative consequence. Both are subjective normalized ratings, not calibrated probabilities.",
+    "detection": "D is current evidence-backed ability to catch the specific regression before acceptance, across the scope it needs. Higher is better. It is not a measured probability or a guarantee.",
+    "detection_anchors": {
+      "0.00": "No credible detection mechanism.",
+      "0.20": "Mostly source inspection, indirect symptoms, or limited mocks; key checks missing.",
+      "0.40": "Some targeted automated tests; substantial boundary/environment coverage missing.",
+      "0.60": "Several relevant integration/adverse checks; important gaps remain.",
+      "0.80": "Broad demonstrated detection including necessary environment/edge cases; small remaining gaps.",
+      "1.00": "Ideal complete detection within an explicit bounded fault model; not claimed for this platform."
+    },
+    "unnoticed_exposure": "U = R × (1 − D), a prioritization heuristic only. It is not expected financial loss or the probability of failure."
+  },
+  "evidence_limits": [
+    "Code and named test assertions were inspected for this assessment.",
+    "The last recorded local suite is 55 passing tests; no new application test run or mutation campaign was conducted for these scores.",
+    "Old-image live A100/GCS probe establishes only its recorded scope.",
+    "Full live workflow, IAM denial, MLflow, GKE serving, and Loki checks remain incomplete.",
+    "Scores can change after observed mutation/fault/concurrency/live acceptance; simply adding test code does not establish improved detection."
+  ],
+  "risks": [
+    {
+      "id": "MR-01",
+      "title": "Contract or API incompatibility",
+      "likelihood": 0.75,
+      "impact": 0.8,
+      "risk_score": 0.6,
+      "detection_score": 0.7,
+      "origin": "Introduced/enlarged",
+      "regression": "A producer changes fields, required values, enums, or serialization and a consumer cannot read its output.",
+      "current_evidence": "Strict Pydantic records and current CLI/controller integration tests catch several shape errors.",
+      "detection_gap": "No versioned producer/consumer compatibility matrix or historical-contract replay.",
+      "required_detection_test": "Run every supported producer/consumer contract pair; reject unsupported versions before any job or write.",
+      "requirement_refs": [
+        "TP-016",
+        "TP-023"
+      ],
+      "source_paths": [
+        "tests/test_control.py"
+      ],
+      "unnoticed_exposure_index": 0.18
+    },
+    {
+      "id": "MR-02",
+      "title": "Silent changes to data or model meaning",
+      "likelihood": 0.8,
+      "impact": 0.9,
+      "risk_score": 0.72,
+      "detection_score": 0.45,
+      "origin": "Introduced/enlarged",
+      "regression": "Class order, label meaning, split policy, preprocessing, pooling, or metric selection changes while the record still validates.",
+      "current_evidence": "Tests cover class matching, deterministic splits, DINOv3 pooling/gradients, and MCC/F1 selection.",
+      "detection_gap": "No unified semantic fingerprint or complete trainer-to-serving comparison.",
+      "required_detection_test": "Use a fixed dataset/model bundle to compare labels, splits, preprocessing, selected checkpoint, predictions, and review flags; deliberately reorder classes and change preprocessing to prove rejection.",
+      "requirement_refs": [
+        "TP-030",
+        "TP-041",
+        "TP-054"
+      ],
+      "source_paths": [
+        "tests/test_dinov3_integration.py"
+      ],
+      "unnoticed_exposure_index": 0.396
+    },
+    {
+      "id": "MR-03",
+      "title": "Invalid or substituted dataset consumed",
+      "likelihood": 0.7,
+      "impact": 0.9,
+      "risk_score": 0.63,
+      "detection_score": 0.7,
+      "origin": "Existing, exposed at handoff",
+      "regression": "Training trusts a dataset reference whose shards, source evidence, object binding, or accepted labels changed.",
+      "current_evidence": "Local checksum, commit-marker, class, source, manifest, and shard tampering cases are tested.",
+      "detection_gap": "Live substitution, stale-review, and check-to-use races remain unverified.",
+      "required_detection_test": "Mutate each accepted artifact and swap object/version references; verify rejection and zero Vertex jobs, including a live GCS race case.",
+      "requirement_refs": [
+        "TP-033",
+        "TP-044",
+        "TP-046"
+      ],
+      "source_paths": [
+        "tests/test_dataset.py"
+      ],
+      "unnoticed_exposure_index": 0.189
+    },
+    {
+      "id": "MR-04",
+      "title": "Incomplete training output accepted",
+      "likelihood": 0.6,
+      "impact": 0.9,
+      "risk_score": 0.54,
+      "detection_score": 0.3,
+      "origin": "Existing, enlarged by new output contract",
+      "regression": "A partial upload or mismatched model/metrics/calibration bundle becomes a successful TrainingResult or registry candidate.",
+      "current_evidence": "Local training/reload and candidate registration tests cover successful outputs.",
+      "detection_gap": "Trainer uploads files individually; no complete verified output-commit protocol is established.",
+      "required_detection_test": "Interrupt uploads at each artifact, corrupt model/metrics metadata, and return premature job success; no accepted result, candidate eligibility, or release may follow.",
+      "requirement_refs": [
+        "TP-061",
+        "TP-092",
+        "TP-099"
+      ],
+      "source_paths": [
+        "src/defect_platform/trainer/runner.py"
+      ],
+      "unnoticed_exposure_index": 0.378
+    },
+    {
+      "id": "MR-05",
+      "title": "Runtime identity or certification becomes stale",
+      "likelihood": 0.7,
+      "impact": 0.9,
+      "risk_score": 0.63,
+      "detection_score": 0.55,
+      "origin": "Existing, enlarged by packaging changes",
+      "regression": "Moved code/dependencies run under certification for a different image or incompatible hardware.",
+      "current_evidence": "Exact-digest gate tests and actual local DINOv3 regression tests exist; historical A100 probe covers its old digest.",
+      "detection_gap": "Current fixed trainer image lacks live GPU certification; record authenticity and compatibility scope are incomplete.",
+      "required_detection_test": "Build the moved source once; validate actual DINOv3 in that exact image; reject mismatched/revoked hardware scope; intercept build/install APIs during ordinary submission.",
+      "requirement_refs": [
+        "TP-067",
+        "TP-070",
+        "TP-073"
+      ],
+      "source_paths": [
+        "tests/test_runtime_release.py"
+      ],
+      "unnoticed_exposure_index": 0.284
+    },
+    {
+      "id": "MR-06",
+      "title": "Module dependencies or packaging break",
+      "likelihood": 0.8,
+      "impact": 0.6,
+      "risk_score": 0.48,
+      "detection_score": 0.7,
+      "origin": "Introduced/enlarged",
+      "regression": "Imports, extras, entry points, templates, or installed package paths work in the checkout but fail in isolated images.",
+      "current_evidence": "Existing local suite exercises imports and entry points; dependencies are locked.",
+      "detection_gap": "No acceptance of new isolated module packaging, current image, or every component's clean environment.",
+      "required_detection_test": "Install each allowed module dependency set in a clean environment; run public entry points and full fixture integration; deny imports/capabilities outside the declared dependency direction.",
+      "requirement_refs": [
+        "TP-017",
+        "TP-065",
+        "TP-139"
+      ],
+      "source_paths": [
+        "pyproject.toml"
+      ],
+      "unnoticed_exposure_index": 0.144
+    },
+    {
+      "id": "MR-07",
+      "title": "Operational authority crosses module boundaries",
+      "likelihood": 0.7,
+      "impact": 0.9,
+      "risk_score": 0.63,
+      "detection_score": 0.2,
+      "origin": "Existing, potentially disguised by typed contracts",
+      "regression": "An assistant/client/module supplies forged certification or approval, or gains submission/build/storage permissions it should not have.",
+      "current_evidence": "Direct role-guard cases and certification field validation exist.",
+      "detection_gap": "Client runtime overrides remain; regex checks are bypassable; actual service-account/harness denial is unverified.",
+      "required_detection_test": "Forge records and use direct, SDK, subprocess, and alternate endpoint paths under each identity; independently inspect jobs, writes, aliases, and grants for zero forbidden effects.",
+      "requirement_refs": [
+        "TP-070",
+        "TP-093",
+        "TP-133"
+      ],
+      "source_paths": [
+        "tests/test_role_guard.py"
+      ],
+      "unnoticed_exposure_index": 0.504
+    },
+    {
+      "id": "MR-08",
+      "title": "Retries create duplicate paid jobs",
+      "likelihood": 0.6,
+      "impact": 0.9,
+      "risk_score": 0.54,
+      "detection_score": 0.3,
+      "origin": "Existing, enlarged by additional handoffs",
+      "regression": "Two module/controller requests or an uncertain acknowledgement dispatch the same intent twice.",
+      "current_evidence": "Sequential idempotency, changed-key rejection, and fake Vertex lookup recovery are tested.",
+      "detection_gap": "Concurrent/crash windows and distributed dispatch ownership are unverified.",
+      "required_detection_test": "Race identical requests and crash immediately before/after external creation; reconcile one run, one job, one reservation, and one result.",
+      "requirement_refs": [
+        "TP-083",
+        "TP-085",
+        "TP-090"
+      ],
+      "source_paths": [
+        "tests/test_control.py"
+      ],
+      "unnoticed_exposure_index": 0.378
+    },
+    {
+      "id": "MR-09",
+      "title": "Job state lies or cancellation leaves resources running",
+      "likelihood": 0.6,
+      "impact": 0.9,
+      "risk_score": 0.54,
+      "detection_score": 0.25,
+      "origin": "Existing, enlarged by state distribution",
+      "regression": "One module marks success/failure/cancellation while another has unfinished outputs or a still-running cloud job.",
+      "current_evidence": "Some transition rejection and workflow callback tests exist; historical smoke cancellations were observed manually.",
+      "detection_gap": "Workflow marks running on submission and records timeout/poll failure without canceling/reconciling Vertex.",
+      "required_detection_test": "Lose callbacks, expire a deadline, stop the workflow, and delay outputs; compare state to actual Vertex and artifact readiness until reconciled.",
+      "requirement_refs": [
+        "TP-086",
+        "TP-089",
+        "TP-123"
+      ],
+      "source_paths": [
+        "infra/workflow.yaml"
+      ],
+      "unnoticed_exposure_index": 0.405
+    },
+    {
+      "id": "MR-10",
+      "title": "Budget policy is bypassed across modules",
+      "likelihood": 0.7,
+      "impact": 0.8,
+      "risk_score": 0.56,
+      "detection_score": 0.35,
+      "origin": "Existing, enlarged by split cost ownership",
+      "regression": "Dataset preparation, scans, builds, retries, GPU work, or retained resources fall outside the admitted estimate/reservation.",
+      "current_evidence": "Local configured per-run over-cap rejection is tested.",
+      "detection_gap": "Price is caller-provided; aggregate trusted reservations and ancillary costs are not enforced.",
+      "required_detection_test": "Inject a zero rate, omitted cost, changed shape, and simultaneous reservations; verify no paid dispatch and reconcile campaign exposure.",
+      "requirement_refs": [
+        "TP-080",
+        "TP-081",
+        "TP-082"
+      ],
+      "source_paths": [
+        "src/defect_platform/control/controller.py"
+      ],
+      "unnoticed_exposure_index": 0.364
+    },
+    {
+      "id": "MR-11",
+      "title": "Lineage is lost or assigned to the wrong model",
+      "likelihood": 0.7,
+      "impact": 0.7,
+      "risk_score": 0.49,
+      "detection_score": 0.5,
+      "origin": "Introduced/enlarged",
+      "regression": "Dataset, weights, runtime, run, MLflow version, and release references diverge across handoffs.",
+      "current_evidence": "Dataset provenance, controller snapshots, portable bundles, and local MLflow reuse provide partial checks.",
+      "detection_gap": "No complete cross-service integrity-bound lineage reconciliation.",
+      "required_detection_test": "Trace one immutable identity chain end to end; deliberately swap each ID/digest and ensure registration/release refuses the mismatch.",
+      "requirement_refs": [
+        "TP-022",
+        "TP-048",
+        "TP-096"
+      ],
+      "source_paths": [
+        "tests/test_mlflow_registration.py"
+      ],
+      "unnoticed_exposure_index": 0.245
+    },
+    {
+      "id": "MR-12",
+      "title": "Wrong or unapproved model reaches serving",
+      "likelihood": 0.7,
+      "impact": 0.9,
+      "risk_score": 0.63,
+      "detection_score": 0.25,
+      "origin": "Existing, enlarged by deployment contracts",
+      "regression": "Infrastructure treats a deployment request as approval, or alias/deployment/traffic/ledger disagree.",
+      "current_evidence": "Local missing-approver and selected promotion/rollback compensation tests exist.",
+      "detection_gap": "Approval is text, serving resolves mutable champion, and live readiness/concurrent/crash release checks are absent.",
+      "required_detection_test": "Use authenticated approval bound to an exact release; race promotions, change aliases, fail each cutover stage, and verify approved model identity plus rollback.",
+      "requirement_refs": [
+        "TP-104",
+        "TP-106",
+        "TP-112"
+      ],
+      "source_paths": [
+        "tests/test_release_lifecycle.py"
+      ],
+      "unnoticed_exposure_index": 0.473
+    },
+    {
+      "id": "MR-13",
+      "title": "Telemetry cannot expose a regression",
+      "likelihood": 0.8,
+      "impact": 0.6,
+      "risk_score": 0.48,
+      "detection_score": 0.2,
+      "origin": "Introduced/enlarged",
+      "regression": "Module handoffs lose IDs, omit failures, leak context, or report delivery although evidence never reaches the sink.",
+      "current_evidence": "Structured JSON/context code and old probe Cloud Logging observations exist.",
+      "detection_gap": "No telemetry-specific suite or live Loki end-to-end acceptance.",
+      "required_detection_test": "Trace a run across all modules, inject concurrent context and collector failures, and query the real sink for correctly attributed events and explicit gaps.",
+      "requirement_refs": [
+        "TP-118",
+        "TP-119",
+        "TP-124"
+      ],
+      "source_paths": [
+        "src/defect_platform/telemetry.py"
+      ],
+      "unnoticed_exposure_index": 0.384
+    },
+    {
+      "id": "MR-14",
+      "title": "Mixed versions or migration damage historical state",
+      "likelihood": 0.7,
+      "impact": 0.8,
+      "risk_score": 0.56,
+      "detection_score": 0.2,
+      "origin": "Introduced/enlarged",
+      "regression": "Old records, active runs, or independently upgraded modules become unreadable or are reinterpreted incorrectly.",
+      "current_evidence": "Strict present-day schemas exist.",
+      "detection_gap": "No schema migration, mixed-version rollout, or historical replay campaign.",
+      "required_detection_test": "Replay historical records and simulate old/new producer/consumer combinations with active runs; reject unsupported transitions without rewriting accepted history.",
+      "requirement_refs": [
+        "TP-022",
+        "TP-023",
+        "TP-142"
+      ],
+      "source_paths": [
+        "src/defect_platform/contracts.py"
+      ],
+      "unnoticed_exposure_index": 0.448
+    },
+    {
+      "id": "MR-15",
+      "title": "Guided setup and navigation become confusing or broken",
+      "likelihood": 0.7,
+      "impact": 0.5,
+      "risk_score": 0.35,
+      "detection_score": 0.6,
+      "origin": "Introduced/enlarged",
+      "regression": "Module separation leaks implementation details, changes command paths, or leaves missing project/run/artifact links.",
+      "current_evidence": "A guided CLI fixture checks project creation and returned run ID; templates and docs are present.",
+      "detection_gap": "Complete generated artifact indexes and actual non-programmer navigation are unverified.",
+      "required_detection_test": "Run the same plain-language brief through setup, review, submission, status, artifact discovery, and failure recovery; verify all generated links.",
+      "requirement_refs": [
+        "TP-007",
+        "TP-015",
+        "TP-024"
+      ],
+      "source_paths": [
+        "tests/test_guided_cli.py"
+      ],
+      "unnoticed_exposure_index": 0.14
+    },
+    {
+      "id": "MR-16",
+      "title": "Execution waiting returns to the agent",
+      "likelihood": 0.5,
+      "impact": 0.8,
+      "risk_score": 0.4,
+      "detection_score": 0.45,
+      "origin": "Introduced/enlarged",
+      "regression": "Modules call one another through an agent session rather than durable runtime handoffs.",
+      "current_evidence": "Workflow template owns polling and local control tests use a workflow handoff.",
+      "detection_gap": "No deployed agent-disconnect or durable resumption acceptance.",
+      "required_detection_test": "Close the CLI and agent after admission, interrupt the control service, and verify the workflow finishes/reconciles without assistant polling or repeated setup.",
+      "requirement_refs": [
+        "TP-003",
+        "TP-084",
+        "TP-087"
+      ],
+      "source_paths": [
+        "infra/workflow.yaml"
+      ],
+      "unnoticed_exposure_index": 0.22
+    },
+    {
+      "id": "MR-17",
+      "title": "Extra artifact transfers increase cost or latency",
+      "likelihood": 0.5,
+      "impact": 0.6,
+      "risk_score": 0.3,
+      "detection_score": 0.2,
+      "origin": "Introduced/enlarged",
+      "regression": "Module boundaries copy large data/models repeatedly or add unbounded validation/download work.",
+      "current_evidence": "Shard policies and several timeout settings exist.",
+      "detection_gap": "No representative load/transfer benchmark, accepted SLO profile, or complete usage telemetry.",
+      "required_detection_test": "Measure representative bytes, downloads, memory, stage duration, and cost against an accepted baseline; inject over-limit input and observe bounded rejection.",
+      "requirement_refs": [
+        "TP-035",
+        "TP-115",
+        "TP-144"
+      ],
+      "source_paths": [
+        "src/defect_platform/trainer/model.py"
+      ],
+      "unnoticed_exposure_index": 0.24
+    },
+    {
+      "id": "MR-18",
+      "title": "Failures are attributed to the wrong owner",
+      "likelihood": 0.6,
+      "impact": 0.6,
+      "risk_score": 0.36,
+      "detection_score": 0.65,
+      "origin": "Introduced/enlarged",
+      "regression": "A wrapper removes the original failure context and triggers the wrong repair, retry, or rebuild.",
+      "current_evidence": "Selected failure owner/retryability tests exist; the DINOv3 fix was assigned to trainer code.",
+      "detection_gap": "Complete cross-module failure taxonomy and recovery authorization are unverified.",
+      "required_detection_test": "Inject trainer, data, image, permission, quota, registry, and serving failures through real boundaries; verify owner, preserved evidence, and permitted next action.",
+      "requirement_refs": [
+        "TP-076",
+        "TP-088",
+        "TP-122"
+      ],
+      "source_paths": [
+        "tests/test_trainer_runtime.py"
+      ],
+      "unnoticed_exposure_index": 0.126
+    },
+    {
+      "id": "MR-19",
+      "title": "Untrusted model artifact executes code or escapes its path",
+      "likelihood": 0.5,
+      "impact": 1,
+      "risk_score": 0.5,
+      "detection_score": 0.2,
+      "origin": "Existing, enlarged by artifact trust boundary",
+      "regression": "A typed TrainingResult points to malicious checkpoint content or unsafe download paths accepted by another module.",
+      "current_evidence": "Weight checksums and no-hub-fallback tests establish partial integrity behavior.",
+      "detection_gap": "Inference uses weights_only=False; complete provenance-before-deserialization and path containment are not established.",
+      "required_detection_test": "Use safe malicious canaries, substituted bundles, and traversal names in an isolated loader; verify rejection before deserialization/writes and unchanged filesystem/credentials.",
+      "requirement_refs": [
+        "TP-028",
+        "TP-062",
+        "TP-136"
+      ],
+      "source_paths": [
+        "src/defect_platform/trainer/inference.py"
+      ],
+      "unnoticed_exposure_index": 0.4
+    },
+    {
+      "id": "MR-20",
+      "title": "Infrastructure capabilities are stale or only desired state",
+      "likelihood": 0.7,
+      "impact": 0.8,
+      "risk_score": 0.56,
+      "detection_score": 0.2,
+      "origin": "Existing, enlarged by infrastructure output contract",
+      "regression": "Training trusts endpoints, identities, quota, region, network, or readiness declared in config but not true in the environment.",
+      "current_evidence": "Infrastructure templates and historical quota/API observations exist.",
+      "detection_gap": "OpenTofu provider/deployment validation and current live readiness are unverified; historical GPU success is not current capacity.",
+      "required_detection_test": "Compare capability output with observed resource identities/revisions; revoke access/change endpoints/quota and verify revalidation denies or reports uncertainty before paid execution.",
+      "requirement_refs": [
+        "TP-018",
+        "TP-091",
+        "TP-140"
+      ],
+      "source_paths": [
+        "infra/main.tf"
+      ],
+      "unnoticed_exposure_index": 0.448
+    }
+  ]
+}
