@@ -15,7 +15,6 @@ from defect_platform.serve.deploy import apply_rayservice, rayservice_manifest
 from defect_platform.serve.ledger import GCSReleaseLedger, SqlReleaseLedger
 from defect_platform.serve.releases import MlflowRegistryAdapter, ReleaseManager
 
-
 release_app = typer.Typer(help="Review, promote, deploy, and roll back a trained model.", no_args_is_help=True)
 
 
@@ -47,6 +46,7 @@ def _deploy(release: ModelRelease, tracking_uri: str, context: str | None) -> No
         namespace=os.getenv("DEFECT_RAY_NAMESPACE", "defect-serving"),
         ray_version=os.getenv("DEFECT_RAY_VERSION", "2.58.0"),
         gpu_count=float(os.getenv("DEFECT_SERVE_GPUS", "1")),
+        catalog_root=os.getenv("DEFECT_CLASS_CATALOG_ROOT"),
     )
     apply_rayservice(manifest, context=context)
 
@@ -71,6 +71,11 @@ def stage(
     version = registry.get_model_version(name, model_version)
     if str(version.run_id) != run.mlflow_run_id:
         raise typer.BadParameter("MLflow version does not belong to the selected training run")
+    identity = registry.bundle_identity(name, model_version)
+    for key in ("object_slug", "dataset_version_id", "runtime_id", "catalog_sha256",
+                "dataset_semantic_sha256", "runtime_image_digest", "runtime_source_commit"):
+        if identity[key] != getattr(run, key) or identity[key] is None:
+            raise typer.BadParameter(f"Model bundle {key} differs from the admitted run")
     release = ModelRelease(
         object_slug=run.object_slug,
         model_name=name,
@@ -80,6 +85,9 @@ def stage(
         dataset_version_id=run.dataset_version_id,
         runtime_id=run.runtime_id,
         serving_image_digest=serving_image_digest,
+        catalog_sha256=identity["catalog_sha256"],
+        model_semantic_sha256=identity["model_semantic_sha256"],
+        bundle_sha256=identity["bundle_sha256"],
         state="staged",
     )
     _ledger().save(release)

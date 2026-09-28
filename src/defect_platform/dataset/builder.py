@@ -14,6 +14,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from defect_platform.contracts import DatasetSpec, DatasetVersion, ObjectSpec
+from defect_platform.semantics import (
+    catalog_for_object,
+    make_dataset_manifest,
+    validate_label_mapping,
+)
 
 from .duplicates import DuplicateReport, find_duplicates
 from .labels import PreviewResult, map_label, preview_dataset
@@ -45,6 +50,8 @@ def build_dataset(
     existing version; attempting to overwrite a different version is rejected.
     """
     _check_object(spec, object_spec)
+    catalog = catalog_for_object(object_spec)
+    validate_label_mapping(catalog, spec.label_mapping)
     if rows is None:
         rows = [row for source in spec.sources for row in read_label_source(source, bq_client=bq_client)]
     preview = preview_dataset(spec, object_spec, rows=rows)
@@ -94,7 +101,7 @@ def build_dataset(
         image_hashes = {sample.row.image_uri: sample.content_sha256 for sample in samples}
         input_rows = []
         for row in rows:
-            canonical, _ = map_label(row.raw_label, object_spec.classes, spec.label_mapping)
+            canonical, _ = map_label(row.raw_label, object_spec.classes, spec.label_mapping, catalog)
             input_rows.append(
                 {
                     "source": row.source,
@@ -111,6 +118,7 @@ def build_dataset(
             "format_version": 1,
             "object_slug": object_spec.slug,
             "classes": object_spec.classes,
+            "class_catalog": catalog.model_dump(mode="json"),
             "label_mapping": spec.label_mapping,
             "label_review": spec.label_review.model_dump(mode="json") if spec.label_review else None,
             "sources": [source.model_dump(mode="json") for source in spec.sources],
@@ -130,6 +138,7 @@ def build_dataset(
         identity = {
             "object_slug": object_spec.slug,
             "classes": object_spec.classes,
+            "catalog_sha256": catalog.sha256,
             "rows": [
                 [record["content_sha256"], record["label"], record["split"], record["group_id"]]
                 for record in records
@@ -140,6 +149,18 @@ def build_dataset(
             "provenance_sha256": source_digest,
         }
         version_id = "ds-" + hashlib.sha256(_json_bytes(identity)).hexdigest()[:20]
+        assignments_sha256 = _sha256(_json_bytes([
+            {"key": record["key"], "class_id": catalog.decode(catalog.encode(record["label"])).class_id,
+             "split": record["split"]} for record in records
+        ]))
+        semantic_manifest = make_dataset_manifest(
+            object_spec, spec, version_id, source_sha256=source_digest,
+            split_assignments_sha256=assignments_sha256,
+        )
+        semantic_bytes = _json_bytes({"manifest": semantic_manifest.model_dump(mode="json"),
+                                       "sha256": semantic_manifest.sha256})
+        semantic_path = stage_root / "semantics.json"
+        semantic_path.write_bytes(semantic_bytes)
         build_dir = stage_root / "artifacts"
         build_dir.mkdir()
         _build_local_artifacts(samples, records, source_path, spec.shard_max_samples, build_dir)
@@ -160,9 +181,12 @@ def build_dataset(
             "shards": shard_hashes,
             "duplicate_report": source_snapshot["duplicate_report"],
             "split": spec.split.model_dump(mode="json"),
+            "semantic_manifest_sha256": semantic_manifest.sha256,
+            "semantic_manifest_file_sha256": hashlib.sha256(semantic_bytes).hexdigest(),
         }
         _write_json_file(build_dir / "manifest.json", manifest)
         shutil.copyfile(source_path, build_dir / "source-snapshot.json")
+        shutil.copyfile(semantic_path, build_dir / "semantics.json")
         manifest_file_digest = _sha256_file(build_dir / "manifest.json")
         content_digest = _sha256(
             _json_bytes(
@@ -171,6 +195,7 @@ def build_dataset(
                     "manifest_jsonl": manifest_digest,
                     "source": source_digest,
                     "shards": shard_hashes,
+                    "semantics": hashlib.sha256(semantic_bytes).hexdigest(),
                 }
             )
         )
@@ -190,6 +215,8 @@ def build_dataset(
             sample_counts=manifest["sample_counts"],
             sha256=content_digest,
             source_snapshot_uri=_join_uri(root_uri, "source-snapshot.json"),
+            semantic_manifest_uri=_join_uri(root_uri, "semantics.json"),
+            semantic_sha256=semantic_manifest.sha256,
         )
 
 
@@ -198,7 +225,7 @@ def _load_samples(rows: list[LabelRow], spec: DatasetSpec, object_spec: ObjectSp
     uri_to_hash_labels: dict[str, tuple[str, str]] = {}
     stage_dir.mkdir(parents=True, exist_ok=True)
     for i, row in enumerate(rows):
-        label, _ = map_label(row.raw_label, object_spec.classes, spec.label_mapping)
+        label, _ = map_label(row.raw_label, object_spec.classes, spec.label_mapping, catalog_for_object(object_spec))
         if label is None:  # preview already checked; protects future callers
             raise ValueError(f"Unmapped label {row.raw_label!r} at {row.source}:{row.row_number}")
         previous = uri_to_hash_labels.get(row.image_uri)

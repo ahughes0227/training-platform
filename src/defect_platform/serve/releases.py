@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable, Protocol
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Protocol
 
 from defect_platform.contracts import ModelRelease
 
@@ -13,6 +14,7 @@ class RegistryClient(Protocol):
     def get_model_version(self, name: str, version: str): ...
     def set_registered_model_alias(self, name: str, alias: str, version: str): ...
     def delete_registered_model_alias(self, name: str, alias: str): ...
+    def verify_release(self, release: ModelRelease) -> None: ...
 
 
 class ReleaseLedger(Protocol):
@@ -41,13 +43,16 @@ class ReleaseManager:
             raise ValueError("only a staged release can be promoted")
         if "@sha256:" not in candidate.serving_image_digest:
             raise ValueError("serving image must use an immutable digest")
+        if not all((candidate.catalog_sha256, candidate.model_semantic_sha256, candidate.bundle_sha256)):
+            raise ValueError("release lacks pinned semantic identity and bundle integrity")
+        self.registry.verify_release(candidate)
         version = self.registry.get_model_version(candidate.model_name, candidate.model_version)
         if str(version.version) != candidate.model_version:
             raise ValueError("MLflow model version does not match candidate")
         approved = candidate.model_copy(
             update={
                 "approved_by": approver,
-                "approved_at": datetime.now(timezone.utc),
+                "approved_at": datetime.now(UTC),
             }
         )
         # Record intent first. A failed alias switch leaves a staged release;
@@ -91,6 +96,9 @@ class ReleaseManager:
         previous = self.ledger.previous_promoted(object_slug, current.release_id)
         if previous is None:
             raise ValueError("no previous promoted model")
+        if not all((previous.catalog_sha256, previous.model_semantic_sha256, previous.bundle_sha256)):
+            raise ValueError("previous release requires explicit semantic migration before rollback")
+        self.registry.verify_release(previous)
         self.registry.get_model_version(previous.model_name, previous.model_version)
         self.registry.set_registered_model_alias(previous.model_name, "champion", previous.model_version)
         try:
@@ -112,6 +120,48 @@ class MlflowRegistryAdapter:
         mlflow.set_tracking_uri(tracking_uri)
         self.tracking_uri = tracking_uri
         self.client = MlflowClient()
+
+    def bundle_identity(self, name: str, version: str, *,
+                        expected_release: ModelRelease | None = None) -> dict[str, str]:
+        from pathlib import Path
+
+        import mlflow
+
+        from defect_platform.catalog_store import catalog_store_from_env
+        from defect_platform.mlflow_auth import mlflow_tracking_auth
+        from defect_platform.semantics import read_manifest
+        from defect_platform.trainer.weights import artifact_sha256, verify_bundle_integrity
+        with mlflow_tracking_auth(self.tracking_uri):
+            record = self.client.get_model_version(name, version)
+            directory = Path(mlflow.artifacts.download_artifacts(artifact_uri=record.source))
+        verify_bundle_integrity(directory, expected_sha256=(
+            expected_release.bundle_sha256 if expected_release else None))
+        manifest = read_manifest(directory / "semantics.json",
+            expected_release.model_semantic_sha256 if expected_release else None)
+        if manifest.kind != "model":
+            raise ValueError("release requires model semantic manifest")
+        store = catalog_store_from_env()
+        catalog = store.get_catalog(manifest.object_slug, manifest.catalog.sha256) if store else None
+        if catalog is None or catalog.review_status != "reviewed":
+            raise ValueError("release catalog is absent from operator approval store")
+        from defect_platform.trainer.inference import load_inference_bundle
+        load_inference_bundle(directory, expected_semantic_sha256=manifest.sha256,
+            expected_catalog_sha256=catalog.sha256, expected_bundle_sha256=(
+                expected_release.bundle_sha256 if expected_release else None))
+        return {"catalog_sha256": manifest.catalog.sha256, "model_semantic_sha256": manifest.sha256,
+                "bundle_sha256": artifact_sha256(directory / "integrity.json"),
+                "object_slug": manifest.object_slug, "dataset_version_id": manifest.dataset_version_id,
+                "runtime_id": manifest.runtime_id,
+                "runtime_image_digest": manifest.runtime_image_digest,
+                "runtime_source_commit": manifest.runtime_source_commit,
+                "dataset_semantic_sha256": manifest.parent_semantic_sha256}
+
+    def verify_release(self, release: ModelRelease) -> None:
+        identity = self.bundle_identity(release.model_name, release.model_version, expected_release=release)
+        for key in ("catalog_sha256", "model_semantic_sha256", "bundle_sha256", "object_slug",
+                    "dataset_version_id", "runtime_id"):
+            if identity[key] != getattr(release, key):
+                raise ValueError(f"release {key} differs from verified model bundle")
 
     def __getattr__(self, name: str):
         from defect_platform.mlflow_auth import mlflow_tracking_auth

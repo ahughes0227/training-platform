@@ -3,6 +3,10 @@ region                  = "CHANGE_ME"
 gke_zone                = "CHANGE_ME"
 dataset_bucket_name     = "CHANGE_ME"
 artifact_bucket_name    = "CHANGE_ME"
+class_catalog_bucket_name = "CHANGE_ME"
+catalog_operator_members = ["user:CHANGE_ME@example.com"]
+# Set only after an observed acceptance envelope is published to the catalog bucket.
+infrastructure_capabilities_sha256 = ""
 control_image_digest    = "REGISTRY/CONTROL@sha256:CHANGE_ME"
 mlflow_image_digest     = "REGISTRY/MLFLOW@sha256:CHANGE_ME"
 gpu_machine_type        = "CHANGE_ME"

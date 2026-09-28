@@ -8,10 +8,23 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from defect_platform.contracts import CertifiedRuntime, DatasetVersion, ExperimentConfig, RunState, VertexJobConfig
-from defect_platform.control.controller import (GoogleWorkflowsStarter, MLflowTracker, RunController,
-                                                VertexAiplatformSubmitter)
+
+from defect_platform.catalog_store import catalog_store_from_env
+from defect_platform.contracts import (
+    CertifiedRuntime,
+    DatasetVersion,
+    ExperimentConfig,
+    RunState,
+    VertexJobConfig,
+)
+from defect_platform.control.controller import (
+    GoogleWorkflowsStarter,
+    MLflowTracker,
+    RunController,
+    VertexAiplatformSubmitter,
+)
 from defect_platform.control.store import run_store_from_env
+from defect_platform.infrastructure_contract import load_capabilities_from_env
 from defect_platform.telemetry import configure_logging
 
 
@@ -119,6 +132,8 @@ def create_default_app():
     configure_logging()
     controller = RunController(store=run_store_from_env(), runtimes=_InlineRuntimeCatalog(),
                                datasets=_InlineDatasetCatalog(),
+                               catalogs=catalog_store_from_env(),
+                               capabilities=load_capabilities_from_env(), require_capabilities=True,
                                vertex=VertexAiplatformSubmitter(), workflows=workflows,
                                tracker=tracker)
     return create_app(controller)

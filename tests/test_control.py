@@ -1,20 +1,34 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+
 import pytest
 from PIL import Image
 
 from defect_platform.contracts import (
-    CertifiedRuntime, DatasetSpec, ExperimentConfig, LabelSource, ModelSpec, ObjectSpec,
-    RunState, ValidationResults, VertexJobConfig,
+    CertifiedRuntime,
+    DatasetSpec,
+    ExperimentConfig,
+    LabelSource,
+    ModelSpec,
+    ObjectSpec,
+    RunState,
+    ValidationResults,
+    VertexJobConfig,
 )
 from defect_platform.control.controller import RunController, VertexAiplatformSubmitter
 from defect_platform.control.store import SQLiteRunStore
 from defect_platform.dataset import LabelRow, build_dataset
+from defect_platform.semantics import ClassCatalog, ClassDefinition
 
 
 def fixtures(tmp_path):
-    object_spec = ObjectSpec(slug="panel", display_name="Panel", classes=["crack", "dent"])
+    catalog_spec = ClassCatalog(catalog_id="panel-v1", object_slug="panel", version=1,
+        review_status="reviewed", reviewed_by="fixture-reviewer", reviewed_at=datetime.now(UTC),
+        classes=[ClassDefinition(class_id="crack", label="crack", definition="A crack"),
+                 ClassDefinition(class_id="dent", label="dent", definition="A dent")])
+    object_spec = ObjectSpec(slug="panel", display_name="Panel", classes=["crack", "dent"],
+                             class_catalog=catalog_spec)
     rows = []
     for index in range(12):
         image = Image.new("RGB", (24, 24))
@@ -32,7 +46,7 @@ def fixtures(tmp_path):
         near_duplicate_distance=0)
     digest = "sha256:" + "a" * 64
     runtime = CertifiedRuntime(
-        runtime_id="runtime-1", source_commit="abc123", image_tag="train:v1",
+        runtime_id="runtime-1", source_commit="a" * 40, image_tag="train:v1",
         image_digest="us-docker.pkg.dev/p/r/train@" + digest,
         runtime_version="1", python_version="3.12", pytorch_version="2.6",
         cuda_version="12.4", validation=ValidationResults(
@@ -53,7 +67,11 @@ def fixtures(tmp_path):
         def get_certified(self, _): return runtime
         def get(self, _): return dataset
 
-    return runtime, experiment, dataset, job, Catalog()
+    class TrustedCatalogs:
+        def get_catalog(self, _object_slug, catalog_sha256):
+            return catalog_spec if catalog_sha256 == catalog_spec.sha256 else None
+
+    return runtime, experiment, dataset, job, Catalog(), TrustedCatalogs()
 
 
 class FakeWorkflow:
@@ -74,10 +92,10 @@ class FakeVertex:
 
 
 def test_submit_persists_before_start_and_idempotent_retry_starts_once(tmp_path):
-    runtime, experiment, dataset, job, catalog = fixtures(tmp_path)
+    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     workflow = FakeWorkflow(store)
-    controller = RunController(store=store, runtimes=catalog, datasets=catalog, workflows=workflow)
+    controller = RunController(store=store, runtimes=catalog, datasets=catalog, workflows=workflow, catalogs=catalogs)
 
     run, created = controller.submit(experiment=experiment, job=job, idempotency_key="request-1", classes=["crack", "dent"])
     retry, retry_created = controller.submit(experiment=experiment, job=job, idempotency_key="request-1", classes=["crack", "dent"])
@@ -87,13 +105,16 @@ def test_submit_persists_before_start_and_idempotent_retry_starts_once(tmp_path)
     assert run.state == RunState.SUBMITTED
     assert run.output_uri == f"gs://bucket/staging/runs/{run.run_id}"
     assert len(workflow.calls) == 1
+    assert run.runtime_image_digest == runtime.image_digest
+    assert run.runtime_source_commit == runtime.source_commit
+    assert retry.runtime_image_digest == runtime.image_digest
     assert store.get_payload(run.run_id)["runtime"]["image_digest"] == runtime.image_digest
 
 
 def test_preflight_blocks_over_budget_before_creating_run(tmp_path):
-    runtime, experiment, dataset, job, catalog = fixtures(tmp_path)
+    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
-    controller = RunController(store=store, runtimes=catalog, datasets=catalog,
+    controller = RunController(store=store, runtimes=catalog, datasets=catalog, catalogs=catalogs,
                                vertex=FakeVertex())
     expensive = job.model_copy(update={"max_run_cost_usd": 19})
 
@@ -103,10 +124,10 @@ def test_preflight_blocks_over_budget_before_creating_run(tmp_path):
 
 
 def test_normal_experiment_reuses_certified_digest_and_failure_has_owner(tmp_path):
-    runtime, experiment, dataset, job, catalog = fixtures(tmp_path)
+    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     vertex = FakeVertex()
-    controller = RunController(store=store, runtimes=catalog, datasets=catalog, vertex=vertex)
+    controller = RunController(store=store, runtimes=catalog, datasets=catalog, vertex=vertex, catalogs=catalogs)
 
     run, _ = controller.submit(experiment=experiment, job=job, idempotency_key="direct-run", classes=["crack", "dent"])
 
@@ -121,9 +142,9 @@ def test_normal_experiment_reuses_certified_digest_and_failure_has_owner(tmp_pat
 
 
 def test_idempotency_key_rejects_changed_config(tmp_path):
-    runtime, experiment, dataset, job, catalog = fixtures(tmp_path)
+    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
     controller = RunController(store=SQLiteRunStore(tmp_path / "runs.sqlite"),
-                               runtimes=catalog, datasets=catalog, vertex=FakeVertex())
+                               runtimes=catalog, datasets=catalog, vertex=FakeVertex(), catalogs=catalogs)
     controller.submit(experiment=experiment, job=job, idempotency_key="same-key", classes=["crack", "dent"])
     changed = experiment.model_copy(update={"learning_rate": 0.002})
     with pytest.raises(ValueError, match="different request"):
@@ -158,7 +179,7 @@ def test_vertex_adapter_waits_and_validates_gcs_handshake_result():
 
 
 def test_vertex_submission_returns_server_resource_and_recovers_retry(tmp_path, monkeypatch):
-    runtime, experiment, dataset, job, _ = fixtures(tmp_path)
+    runtime, experiment, dataset, job, _, _ = fixtures(tmp_path)
     from defect_platform.control import controller as module
     uploads = []
     monkeypatch.setattr(module, "_upload_vertex_request", lambda *args: uploads.append(args) or "gs://bucket/request.json")
@@ -180,22 +201,28 @@ def test_vertex_submission_returns_server_resource_and_recovers_retry(tmp_path, 
     submitter = VertexAiplatformSubmitter(client_factory=lambda location: client)
     args = dict(run_id="run-1", experiment=experiment, dataset=dataset,
                 runtime=runtime, job=job, output_uri="gs://bucket/runs/run-1",
-                classes=["crack", "dent"])
+                classes=["crack", "dent"], semantic_refs={
+                    "dataset_semantic_sha256": dataset.semantic_sha256,
+                    "catalog_sha256": "e" * 64})
     assert submitter.submit(**args) == "projects/project/locations/us-central1/customJobs/123"
     assert submitter.submit(**args) == "projects/project/locations/us-central1/customJobs/123"
     assert client.calls == 1
     assert len(uploads) == 1
+    assert uploads[0][2]["semantic_refs"] == args["semantic_refs"]
+    assert uploads[0][2]["runtime"]["image_digest"] == runtime.image_digest
+    assert uploads[0][2]["runtime"]["source_commit"] == runtime.source_commit
 
 
 def test_control_http_submission_and_workflow_callbacks(tmp_path):
     from fastapi.testclient import TestClient
+
     from defect_platform.control.api import create_app
 
-    runtime, experiment, dataset, job, catalog = fixtures(tmp_path)
+    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     workflow = FakeWorkflow(store)
     controller = RunController(store=store, runtimes=catalog, datasets=catalog,
-                               workflows=workflow, vertex=FakeVertex())
+                               workflows=workflow, vertex=FakeVertex(), catalogs=catalogs)
     client = TestClient(create_app(controller))
     body = {"experiment": experiment.model_dump(mode="json"),
             "job": job.model_dump(mode="json"), "dataset": dataset.model_dump(mode="json"),

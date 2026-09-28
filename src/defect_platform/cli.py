@@ -4,22 +4,30 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-from typing import Optional
 from datetime import UTC, datetime
+from pathlib import Path
 
 import typer
 import yaml
 
-from defect_platform.contracts import (CertifiedRuntime, DatasetSpec, DatasetVersion, ExperimentConfig,
-                                       LabelReviewEvidence,
-                                       ModelSpec, ObjectSpec, VertexJobConfig)
+from defect_platform.catalog_store import DirectoryCatalogStore, catalog_store_from_env
+from defect_platform.contracts import (
+    CertifiedRuntime,
+    DatasetSpec,
+    DatasetVersion,
+    ExperimentConfig,
+    LabelReviewEvidence,
+    ModelSpec,
+    ObjectSpec,
+    VertexJobConfig,
+)
 from defect_platform.control.client import ControlAPIClient
 from defect_platform.control.setup import propose_setup
 from defect_platform.control.store import run_store_from_env
 from defect_platform.dataset import build_dataset, preview_dataset
-from defect_platform.serve.commands import release_app
 from defect_platform.runtime_release import runtime_app
+from defect_platform.semantics import ClassCatalog, catalog_for_object
+from defect_platform.serve.commands import release_app
 from defect_platform.telemetry import bind_context, configure_logging, reset_context
 
 app = typer.Typer(help="Create defect datasets and manage DINOv3 training runs.", no_args_is_help=True)
@@ -81,7 +89,7 @@ def _run_submit(config_path: Path, idempotency_key: str | None) -> None:
     service_url = config.get("platform", {}).get("control_service_url") or os.getenv("DEFECT_CONTROL_SERVICE_URL")
     if not service_url:
         raise typer.BadParameter("Set DEFECT_CONTROL_SERVICE_URL to submit through the durable control service")
-    run, created = ControlAPIClient(service_url).submit({
+    run, _created = ControlAPIClient(service_url).submit({
         "experiment": experiment.model_dump(mode="json"),
         "job": job.model_dump(mode="json"),
         "dataset": dataset.model_dump(mode="json"),
@@ -103,14 +111,14 @@ def _run_submit(config_path: Path, idempotency_key: str | None) -> None:
 
 @run_app.command("submit")
 def run_submit(config: Path = typer.Argument(..., exists=True, readable=True),
-               idempotency_key: Optional[str] = typer.Option(None, "--idempotency-key", "-k")):
+               idempotency_key: str | None = typer.Option(None, "--idempotency-key", "-k")):
     """Validate a run request, enforce its spend cap, and return a run ID."""
     _run_submit(config, idempotency_key)
 
 
 @train_app.command("start")
 def train_start(config: Path = typer.Argument(..., exists=True, readable=True),
-                idempotency_key: Optional[str] = typer.Option(None, "--idempotency-key", "-k")):
+                idempotency_key: str | None = typer.Option(None, "--idempotency-key", "-k")):
     """Alias for `run submit` for the simple training workflow."""
     _run_submit(config, idempotency_key)
 
@@ -131,7 +139,7 @@ def run_status(run_id: str = typer.Argument(...),
 
 
 @run_app.command("list")
-def run_list(object_slug: Optional[str] = typer.Option(None, "--object"),
+def run_list(object_slug: str | None = typer.Option(None, "--object"),
              as_json: bool = typer.Option(False, "--json")):
     """List recent runs, optionally filtered by object."""
     service_url = os.getenv("DEFECT_CONTROL_SERVICE_URL")
@@ -162,7 +170,10 @@ def _write_run_locator(run) -> None:
                "created_at": run.created_at.isoformat(), "vertex_job_name": run.vertex_job_name,
                "mlflow_run_id": run.mlflow_run_id, "output_uri": run.output_uri,
                "logs_uri": run.logs_uri, "failure_code": run.failure_code,
-               "failure_message": run.failure_message}
+               "failure_message": run.failure_message, "catalog_sha256": run.catalog_sha256,
+               "dataset_semantic_sha256": run.dataset_semantic_sha256,
+               "runtime_image_digest": run.runtime_image_digest,
+               "runtime_source_commit": run.runtime_source_commit}
     target.write_text(yaml.safe_dump(payload, sort_keys=False))
 
 
@@ -293,18 +304,87 @@ def _render_object_templates(root: Path, spec: ObjectSpec) -> None:
         for placeholder, value in replacements.items():
             content = content.replace(placeholder, value)
         if name == "object.yaml":
-            lines = content.rstrip().splitlines()
-            lines += [f'  - "{value}"' for value in spec.classes[2:]]
-            content = "\n".join(lines) + "\n"
+            catalog = catalog_for_object(spec)
+            if catalog.review_status == "legacy":
+                catalog = catalog.model_copy(update={"review_status": "draft"})
+            spec = ObjectSpec.model_validate({**spec.model_dump(mode="json"),
+                                              "class_catalog": catalog.model_dump(mode="json")})
+            content = yaml.safe_dump(spec.model_dump(mode="json"), sort_keys=False)
+            (root / "class-catalog.yaml").write_text(
+                yaml.safe_dump(catalog.model_dump(mode="json"), sort_keys=False))
         content = content.replace("defect runs list --object", "defect run list --object")
         content = content.replace("defect runs show RUN_ID", "defect run status RUN_ID")
         (root / name).write_text(content)
 
 
+def _publish_reviewed_object(spec: ObjectSpec, store: DirectoryCatalogStore,
+                             reviewer: str, *, approved: bool) -> ObjectSpec:
+    if not approved:
+        raise ValueError("explicit class catalog approval is required")
+    catalog = catalog_for_object(spec)
+    if catalog.review_status != "reviewed":
+        catalog = ClassCatalog.model_validate({**catalog.model_dump(mode="json"),
+            "review_status": "reviewed", "reviewed_by": reviewer,
+            "reviewed_at": datetime.now(UTC).isoformat()})
+    store.publish(catalog)
+    return ObjectSpec.model_validate({**spec.model_dump(mode="json"),
+                                     "class_catalog": catalog.model_dump(mode="json")})
+
+
+@object_app.command("review-catalog")
+def review_catalog(
+    object_config: Path = typer.Argument(..., exists=True, readable=True),
+    reviewer: str = typer.Option(..., "--reviewer"),
+    approve: bool = typer.Option(False, "--approve", help="Explicitly approve the displayed definitions"),
+    store_root: str | None = typer.Option(None, "--store", help="Operator catalog directory or gs:// root"),
+) -> None:
+    """Review definitions in object.yaml and publish an immutable approved catalog."""
+    store = DirectoryCatalogStore(store_root) if store_root else catalog_store_from_env()
+    if store is None:
+        raise typer.BadParameter("Set DEFECT_CLASS_CATALOG_ROOT or --store to the operator approval store")
+    try:
+        spec = ObjectSpec.model_validate(_read_yaml(object_config))
+        for item in catalog_for_object(spec).classes:
+            typer.echo(f"{item.class_id}: {item.label} — {item.definition or 'MISSING DEFINITION'}")
+        spec = _publish_reviewed_object(spec, store, reviewer, approved=approve)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    object_config.write_text(yaml.safe_dump(spec.model_dump(mode="json"), sort_keys=False))
+    (object_config.parent / "class-catalog.yaml").write_text(
+        yaml.safe_dump(spec.class_catalog.model_dump(mode="json"), sort_keys=False))
+    typer.echo(f"Approved catalog: {spec.class_catalog.sha256}")
+
+
+def _guided_catalog(spec: ObjectSpec, store: DirectoryCatalogStore) -> ObjectSpec:
+    catalog = catalog_for_object(spec)
+    if catalog.review_status == "reviewed":
+        accepted = store.get_catalog(spec.slug, catalog.sha256)
+        if accepted is not None:
+            return spec
+    values = catalog.model_dump(mode="json")
+    for item in values["classes"]:
+        if not item["definition"].strip():
+            item["definition"] = typer.prompt(f"What exactly counts as {item['label']}?")
+        typer.echo(f"{item['class_id']}: {item['label']} — {item['definition']}")
+    # A setup agent may propose meanings; it cannot publish its own review status.
+    values.update(review_status="draft", reviewed_by=None, reviewed_at=None)
+    catalog = ClassCatalog.model_validate(values)
+    candidate = ObjectSpec.model_validate({**spec.model_dump(mode="json"),
+                                          "class_catalog": catalog.model_dump(mode="json")})
+    approved = typer.confirm("Approve these ordered class definitions for this object?", default=False)
+    if not approved:
+        raise typer.BadParameter("Review class definitions in object.yaml before training")
+    reviewer = typer.prompt("Name or ID of the person approving the definitions")
+    try:
+        return _publish_reviewed_object(candidate, store, reviewer, approved=approved)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
 @setup_app.command("ask")
 def setup_ask(request: str = typer.Argument(..., help="Describe the object, labels, notes, and data location."),
               output: Path = typer.Option(Path("setup-draft.yaml"), "--output", "-o"),
-              model: Optional[str] = typer.Option(None, "--model")):
+              model: str | None = typer.Option(None, "--model")):
     """Ask a configured LiteLLM model clarifying questions and save a validated draft."""
     configured_model = model or os.environ.get("DEFECT_LITELLM_MODEL")
     try:
@@ -323,7 +403,7 @@ def setup_ask(request: str = typer.Argument(..., help="Describe the object, labe
 @train_app.command("guided")
 def train_guided(
     description: str = typer.Argument(..., help="Object details, notes, image and label locations"),
-    model: Optional[str] = typer.Option(None, "--model", help="Configured LiteLLM model"),
+    model: str | None = typer.Option(None, "--model", help="Configured LiteLLM model"),
     project_root: Path = typer.Option(Path("projects"), "--project-root"),
 ) -> None:
     """Ask up to three rounds of setup questions, review labels, then submit training."""
@@ -333,6 +413,9 @@ def train_guided(
     configured_model = model or os.getenv("DEFECT_LITELLM_MODEL")
     if not configured_model:
         raise typer.BadParameter("Set DEFECT_LITELLM_MODEL for guided setup")
+    catalog_store = catalog_store_from_env()
+    if catalog_store is None:
+        raise typer.BadParameter("Set DEFECT_CLASS_CATALOG_ROOT to the operator approval store")
     conversation = description
     draft = None
     for _ in range(3):
@@ -355,10 +438,15 @@ def train_guided(
     root = project_root / obj.slug
     if root.exists() and any(root.iterdir()):
         existing = ObjectSpec.model_validate(_read_yaml(root / "object.yaml"))
-        if existing != obj:
+        if existing.model_dump(exclude={"class_catalog"}) != obj.model_dump(exclude={"class_catalog"}):
             raise typer.BadParameter(f"Existing project {root} differs from the proposed object; review it first")
+        obj = existing
     else:
         _render_object_templates(root, obj)
+    obj = _guided_catalog(obj, catalog_store)
+    (root / "object.yaml").write_text(yaml.safe_dump(obj.model_dump(mode="json"), sort_keys=False))
+    (root / "class-catalog.yaml").write_text(
+        yaml.safe_dump(obj.class_catalog.model_dump(mode="json"), sort_keys=False))
     output_uri = os.getenv("DEFECT_DATASET_OUTPUT_URI") or typer.prompt("GCS folder for versioned datasets")
     dataset_spec = DatasetSpec(object_slug=obj.slug, sources=draft.sources, output_uri=output_uri)
     dataset_config = root / "dataset.yaml"
@@ -387,6 +475,7 @@ def train_guided(
         "object_slug": obj.slug,
         "dataset_version_id": dataset.version_id,
         "runtime_id": runtime.runtime_id,
+        "catalog_sha256": obj.class_catalog.sha256,
         "model": ModelSpec(weights_uri=weights_uri, weights_sha256=weights_sha).model_dump(mode="json"),
     }
     allowed_experiment_fields = {

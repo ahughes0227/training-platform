@@ -1,0 +1,134 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_root_uri": {
+      "title": "Artifact Root Uri",
+      "type": "string"
+    },
+    "capability_id": {
+      "minLength": 1,
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "certified_sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "minProperties": 1,
+      "title": "Certified Sources",
+      "type": "object"
+    },
+    "control_url": {
+      "title": "Control Url",
+      "type": "string"
+    },
+    "dataset_root_uri": {
+      "title": "Dataset Root Uri",
+      "type": "string"
+    },
+    "deployment_revision": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Deployment Revision",
+      "type": "string"
+    },
+    "evidence_uris": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Uris",
+      "type": "array"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "mlflow_uri": {
+      "title": "Mlflow Uri",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "otlp_endpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Otlp Endpoint"
+    },
+    "project": {
+      "minLength": 1,
+      "title": "Project",
+      "type": "string"
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "unready"
+      ],
+      "title": "Readiness",
+      "type": "string"
+    },
+    "region": {
+      "minLength": 1,
+      "title": "Region",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "serving_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Serving Url"
+    },
+    "supported_contracts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Supported Contracts",
+      "type": "object"
+    },
+    "trainer_service_account": {
+      "title": "Trainer Service Account",
+      "type": "string"
+    }
+  },
+  "required": [
+    "capability_id",
+    "deployment_revision",
+    "project",
+    "region",
+    "observed_at",
+    "expires_at",
+    "readiness",
+    "dataset_root_uri",
+    "artifact_root_uri",
+    "trainer_service_account",
+    "control_url",
+    "mlflow_uri",
+    "certified_sources",
+    "evidence_uris"
+  ],
+  "title": "InfrastructureCapabilities",
+  "type": "object"
+}

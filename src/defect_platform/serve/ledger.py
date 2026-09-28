@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sqlite3
 import re
-from pathlib import Path
+import sqlite3
 from datetime import datetime, timezone
-from uuid import uuid4
+from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from defect_platform.contracts import ModelRelease
 

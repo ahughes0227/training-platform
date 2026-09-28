@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from typing import Iterable
 
 from defect_platform.contracts import DatasetSpec, ObjectSpec
+from defect_platform.semantics import ClassCatalog, catalog_for_object, validate_label_mapping
 
 from .sources import LabelRow, read_label_source
 
@@ -52,18 +53,28 @@ def normalize_label(value: str) -> str:
     return " ".join(value.split())
 
 
-def map_label(raw_label: str, classes: Iterable[str], mapping: dict[str, str]) -> tuple[str | None, str]:
+def map_label(raw_label: str, classes: Iterable[str], mapping: dict[str, str],
+              catalog: ClassCatalog | None = None) -> tuple[str | None, str]:
     normalized = normalize_label(raw_label)
-    canonical_by_norm = {normalize_label(class_name): class_name for class_name in classes}
+    class_list = list(classes)
+    # Catalog aliases resolve to stable catalog positions, while the artifact
+    # labels remain the catalog's ordered display labels.
+    canonical_by_norm = {normalize_label(class_name): class_name for class_name in class_list}
     mapping_by_norm = {normalize_label(alias): target for alias, target in mapping.items()}
     target = mapping_by_norm.get(normalized)
-    if target is None:
-        target = canonical_by_norm.get(normalized)
-    if target is None:
-        return None, normalized
-    target_norm = normalize_label(target)
-    canonical = canonical_by_norm.get(target_norm)
-    return canonical, normalized
+    if target is not None:
+        if catalog is not None:
+            try:
+                return catalog.decode(catalog.encode(target)).label, normalized
+            except ValueError:
+                return None, normalized
+        return canonical_by_norm.get(normalize_label(target)), normalized
+    if catalog is not None:
+        try:
+            return catalog.decode(catalog.encode(raw_label)).label, normalized
+        except ValueError:
+            return None, normalized
+    return canonical_by_norm.get(normalized), normalized
 
 
 def preview_dataset(
@@ -75,6 +86,7 @@ def preview_dataset(
 ) -> PreviewResult:
     """Resolve configured labels and return exceptions suitable for human review."""
     _check_object(spec, object_spec)
+    catalog = catalog_for_object(object_spec)
     if rows is None:
         rows = [row for source in spec.sources for row in read_label_source(source, bq_client=bq_client)]
     exceptions: list[LabelException] = []
@@ -83,7 +95,7 @@ def preview_dataset(
     seen_sample_ids: dict[str, LabelRow] = {}
     canonical_rows: dict[str, set[str]] = {}
     for row in rows:
-        canonical, normalized = map_label(row.raw_label, object_spec.classes, spec.label_mapping)
+        canonical, normalized = map_label(row.raw_label, object_spec.classes, spec.label_mapping, catalog)
         if canonical is None:
             candidates = _suggestions(normalized, object_spec.classes)
             exceptions.append(
@@ -163,6 +175,13 @@ def _suggestions(normalized: str, classes: list[str]) -> list[str]:
 def _check_object(spec: DatasetSpec, object_spec: ObjectSpec) -> None:
     if spec.object_slug != object_spec.slug:
         raise ValueError(f"Dataset object {spec.object_slug!r} does not match {object_spec.slug!r}")
-    invalid_targets = sorted(set(spec.label_mapping.values()) - set(object_spec.classes))
+    catalog = catalog_for_object(object_spec)
+    validate_label_mapping(catalog, spec.label_mapping)
+    invalid_targets = []
+    for target in spec.label_mapping.values():
+        try:
+            catalog.encode(target)
+        except ValueError:
+            invalid_targets.append(target)
     if invalid_targets:
-        raise ValueError(f"Label mapping targets unknown classes: {', '.join(invalid_targets)}")
+        raise ValueError(f"Label mapping targets unknown classes: {', '.join(sorted(set(invalid_targets)))}")

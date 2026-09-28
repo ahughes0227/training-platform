@@ -17,16 +17,17 @@ OUTPUT = ROOT / "docs/REQUIREMENTS.md"
 def validate(data: dict, context: str) -> None:
     records = data["requirements"]
     ids = [row["id"] for row in records]
-    expected = [f"TP-{number:03d}" for number in range(1, 151)]
+    count = data.get("requirement_count", 150)
+    expected = [f"TP-{number:03d}" for number in range(1, count + 1)]
     if ids != expected:
-        raise ValueError("Register must contain ordered unique IDs TP-001 through TP-150")
+        raise ValueError(f"Register must contain ordered unique IDs TP-001 through TP-{count:03d}")
     sections = {item["key"]: item for item in data["sections"]}
     catalog = {item["id"]: item for item in data["evidence_catalog"]}
     if len(sections) != len(data["sections"]) or len(catalog) != len(data["evidence_catalog"]):
         raise ValueError("Duplicate section or evidence ID")
     test_names = {
         node.name
-        for path in (ROOT / "tests").glob("test_*.py")
+        for path in (ROOT / "tests").rglob("test_*.py")
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name.startswith("test_")
@@ -153,7 +154,8 @@ def main() -> None:
         OUTPUT.write_text(rendered, encoding="utf-8")
     elif not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != rendered:
         raise SystemExit("Requirements view is stale; run with --write")
-    print(f"Validated {len(data['requirements'])} requirements, 150 positive and 150 negative procedures, "
+    count = len(data["requirements"])
+    print(f"Validated {count} requirements, {count} positive and {count} negative procedures, "
           f"{len(data['evidence_catalog'])} evidence entries, and document references.")
 
 

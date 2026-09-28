@@ -6,14 +6,22 @@ import yaml
 from typer.testing import CliRunner
 
 from defect_platform import cli
-from defect_platform.contracts import (CertifiedRuntime, DatasetVersion, RunRecord,
-                                       ValidationResults, VertexJobConfig)
+from defect_platform.catalog_store import DirectoryCatalogStore
+from defect_platform.contracts import (
+    CertifiedRuntime,
+    DatasetVersion,
+    RunRecord,
+    ValidationResults,
+    VertexJobConfig,
+)
 from defect_platform.control.setup import SetupDraft
+from defect_platform.semantics import ClassCatalog, ClassDefinition
 
 
 def test_guided_setup_builds_project_and_submits_to_durable_control_api(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DEFECT_CONTROL_SERVICE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DEFECT_CLASS_CATALOG_ROOT", str(tmp_path / "catalogs"))
     monkeypatch.setenv("DEFECT_LITELLM_MODEL", "fixture-model")
     monkeypatch.setenv("DEFECT_DATASET_OUTPUT_URI", str(tmp_path / "datasets"))
     monkeypatch.setenv("DEFECT_DINOV3_WEIGHTS_URI", "gs://weights/dino")
@@ -34,8 +42,14 @@ def test_guided_setup_builds_project_and_submits_to_durable_control_api(tmp_path
     job_path = tmp_path / "vertex.yaml"
     job_path.write_text(yaml.safe_dump(job.model_dump(mode="json")))
     monkeypatch.setenv("DEFECT_DEFAULT_VERTEX_CONFIG", str(job_path))
+    catalog = ClassCatalog(catalog_id="valve-v1", object_slug="valve", review_status="reviewed",
+        reviewed_by="fixture-reviewer", reviewed_at=datetime.now(timezone.utc), classes=[
+            ClassDefinition(class_id="crack", label="crack", definition="A crack"),
+            ClassDefinition(class_id="dent", label="dent", definition="A dent")])
+    DirectoryCatalogStore(tmp_path / "catalogs").publish(catalog)
     draft = SetupDraft.model_validate({"object": {"slug": "valve", "display_name": "Valve",
-        "classes": ["crack", "dent"]}, "sources": [{"kind": "csv", "location": "labels.csv"}],
+        "classes": ["crack", "dent"], "class_catalog": catalog.model_dump(mode="json")},
+        "sources": [{"kind": "csv", "location": "labels.csv"}],
         "experiment": {"epochs": 2}})
     monkeypatch.setattr(cli, "propose_setup", lambda *args, **kwargs: draft)
     dataset = DatasetVersion(version_id="ds-1", object_slug="valve",
@@ -54,6 +68,7 @@ def test_guided_setup_builds_project_and_submits_to_durable_control_api(tmp_path
         def submit(self, payload):
             assert payload["classes"] == ["crack", "dent"]
             assert payload["experiment"]["dataset_version_id"] == "ds-1"
+            assert payload["experiment"]["catalog_sha256"] == catalog.sha256
             return RunRecord(run_id="run-1", object_slug="valve", experiment_id="exp-1",
                 dataset_version_id="ds-1", runtime_id="runtime-1", state="submitted",
                 created_at=datetime.now(timezone.utc), output_uri="gs://artifacts/runs/run-1"), True

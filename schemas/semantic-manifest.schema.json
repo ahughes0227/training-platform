@@ -1,0 +1,511 @@
+{
+  "$defs": {
+    "ClassCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_id": {
+          "minLength": 1,
+          "title": "Catalog Id",
+          "type": "string"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/ClassDefinition"
+          },
+          "minItems": 2,
+          "title": "Classes",
+          "type": "array"
+        },
+        "object_slug": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Object Slug",
+          "type": "string"
+        },
+        "review_status": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "reviewed",
+            "legacy"
+          ],
+          "title": "Review Status",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "reviewed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed By"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "version": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "catalog_id",
+        "object_slug",
+        "classes"
+      ],
+      "title": "ClassCatalog",
+      "type": "object"
+    },
+    "ClassDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "class_id": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Class Id",
+          "type": "string"
+        },
+        "definition": {
+          "default": "",
+          "title": "Definition",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "negative_examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Negative Examples",
+          "type": "array"
+        },
+        "positive_examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Positive Examples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "class_id",
+        "label"
+      ],
+      "title": "ClassDefinition",
+      "type": "object"
+    },
+    "PreprocessingSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "const": "RGB",
+          "default": "RGB",
+          "title": "Channels",
+          "type": "string"
+        },
+        "image_size": {
+          "exclusiveMinimum": 0,
+          "title": "Image Size",
+          "type": "integer"
+        },
+        "interpolation": {
+          "const": "bilinear",
+          "default": "bilinear",
+          "title": "Interpolation",
+          "type": "string"
+        },
+        "normalization_mean": {
+          "default": [
+            0.485,
+            0.456,
+            0.406
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normalization Mean",
+          "type": "array"
+        },
+        "normalization_std": {
+          "default": [
+            0.229,
+            0.224,
+            0.225
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normalization Std",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "image_size"
+      ],
+      "title": "PreprocessingSpec",
+      "type": "object"
+    },
+    "TrainingPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration_split": {
+          "const": "validation",
+          "default": "validation",
+          "title": "Calibration Split",
+          "type": "string"
+        },
+        "class_weights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Class Weights",
+          "type": "object"
+        },
+        "evaluation_split": {
+          "const": "test",
+          "default": "test",
+          "title": "Evaluation Split",
+          "type": "string"
+        },
+        "exclude_cls_and_register_tokens": {
+          "const": true,
+          "default": true,
+          "title": "Exclude Cls And Register Tokens",
+          "type": "boolean"
+        },
+        "feature_pooling": {
+          "const": "mean_spatial_patches",
+          "default": "mean_spatial_patches",
+          "title": "Feature Pooling",
+          "type": "string"
+        },
+        "focal_gamma": {
+          "minimum": 0,
+          "title": "Focal Gamma",
+          "type": "number"
+        },
+        "horizontal_flip_probability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Horizontal Flip Probability",
+          "type": "number"
+        },
+        "loss": {
+          "enum": [
+            "cross_entropy",
+            "focal"
+          ],
+          "title": "Loss",
+          "type": "string"
+        },
+        "max_review_error_rate": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Review Error Rate"
+        },
+        "optimizer": {
+          "enum": [
+            "adamw",
+            "sgd"
+          ],
+          "title": "Optimizer",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "selection_metrics": {
+          "default": [
+            "mcc",
+            "macro_f1"
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "mcc",
+              "type": "string"
+            },
+            {
+              "const": "macro_f1",
+              "type": "string"
+            }
+          ],
+          "title": "Selection Metrics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "optimizer",
+        "loss",
+        "focal_gamma",
+        "horizontal_flip_probability",
+        "seed"
+      ],
+      "title": "TrainingPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "catalog": {
+      "$ref": "#/$defs/ClassCatalog"
+    },
+    "dataset_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Sha256"
+    },
+    "dataset_version_id": {
+      "minLength": 1,
+      "title": "Dataset Version Id",
+      "type": "string"
+    },
+    "experiment_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Experiment Sha256"
+    },
+    "kind": {
+      "enum": [
+        "dataset",
+        "model"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "label_mapping": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Label Mapping",
+      "type": "object"
+    },
+    "object_slug": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Object Slug",
+      "type": "string"
+    },
+    "parent_semantic_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Semantic Sha256"
+    },
+    "preprocessing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PreprocessingSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "runtime_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Id"
+    },
+    "runtime_image_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Image Digest"
+    },
+    "runtime_source_commit": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Source Commit"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_snapshot_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Snapshot Sha256"
+    },
+    "split_assignments_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Split Assignments Sha256"
+    },
+    "split_policy": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          }
+        ]
+      },
+      "title": "Split Policy",
+      "type": "object"
+    },
+    "training_policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TrainingPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "weights_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Weights Sha256"
+    }
+  },
+  "required": [
+    "kind",
+    "object_slug",
+    "catalog",
+    "dataset_version_id"
+  ],
+  "title": "SemanticManifest",
+  "type": "object"
+}

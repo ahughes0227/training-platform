@@ -43,3 +43,7 @@ No new container build, paid job, or production infrastructure was started by th
 The configured endpoint example remains blank; the deployment example and certification request contain placeholders. The audit has not established that any independently deployed services are available. The earlier GCP quota observations are historical and must be refreshed before another paid GPU operation.
 
 See [the full acceptance record](ACCEPTANCE.md) and [the successful GPU job evidence](evidence/2026-09-27-gpu-container/README.md).
+
+## Semantic extension — September 28, 2026
+
+The owner-approved semantic extension passes the combined **115-test** local suite, including actual dataset-builder-to-DINOv3-to-Ray HTTP integration. See [source-bound evidence and live limits](SEMANTIC_TEST_STATUS.md). Earlier observations below/above remain tied to their original source. This updated software is not certified by the historical A100 digest.

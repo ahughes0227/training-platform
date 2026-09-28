@@ -17,17 +17,27 @@ def rayservice_manifest(
     namespace: str = "defect-serving",
     ray_version: str = "2.58.0",
     gpu_count: float = 1,
+    catalog_root: str | None = None,
 ) -> dict:
-    if release.state != "promoted" or not release.approved_by:
+    if release.state != "promoted" or not release.approved_by or release.approved_at is None:
         raise ValueError("only an approved promoted release may be deployed")
     if "@sha256:" not in release.serving_image_digest:
         raise ValueError("serving image must be addressed by digest")
+    if not all((release.catalog_sha256, release.model_semantic_sha256, release.bundle_sha256)):
+        raise ValueError("release requires pinned catalog, model semantics, and bundle integrity")
+    if not catalog_root:
+        raise ValueError("serving deployment requires an operator class catalog root")
     if gpu_count <= 0 or not float(gpu_count).is_integer():
         raise ValueError("serving requires a positive whole GPU allocation")
 
     env = [
         {"name": "DEFECT_MLFLOW_TRACKING_URI", "value": mlflow_tracking_uri},
         {"name": "DEFECT_MODEL_NAME", "value": release.model_name},
+        {"name": "DEFECT_MODEL_VERSION", "value": release.model_version},
+        {"name": "DEFECT_MODEL_SEMANTIC_SHA256", "value": release.model_semantic_sha256},
+        {"name": "DEFECT_CATALOG_SHA256", "value": release.catalog_sha256},
+        {"name": "DEFECT_BUNDLE_SHA256", "value": release.bundle_sha256},
+        {"name": "DEFECT_CLASS_CATALOG_ROOT", "value": catalog_root},
         {"name": "DEFECT_RELEASE_ID", "value": release.release_id},
         {"name": "DEFECT_SERVE_GPUS", "value": str(gpu_count)},
         {"name": "DEFECT_DEVICE", "value": "cuda"},

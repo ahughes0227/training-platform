@@ -1,24 +1,26 @@
 # Defect Training Platform — Full System Requirements
 
-**Version:** 1.0
+**Version:** 1.1
 
 **Date:** September 28, 2026
 
 **Status:** Requirements baseline for implementation and acceptance; full platform acceptance is incomplete.
 
-**Implementation reviewed:** `dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15`
+**Historical implementation baseline reviewed:** `dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15`
 
 **Audience:** Project owner, dataset reviewers, coding agents, platform operators, and acceptance reviewers.
 
 ## How to use this document
 
-This document contains **150 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
+This document contains **160 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
 
 Read the lifecycle and assurance sections first. Use the section index to find a feature, then its `TP-NNN` identifier to track implementation and evidence. A requirement is a target obligation, not a claim that the current code already satisfies it.
 
 The canonical structured register is [requirements.json](requirements/requirements.json). The surrounding specification is authored in [context.md](requirements/context.md). This document is generated from both, with the evidence catalog. [baseline.json](requirements/baseline.json) records the local test observation used here. Run `python scripts/requirements_document.py --check` to validate document consistency; use `--write` to regenerate after an intentional specification change.
 
 **“Positive evidence” describes successful required behavior. “Negative evidence” describes an attempted opposite or prohibited behavior being prevented.** Known defects and missing evidence are recorded separately. Procedures labeled `P-TP-NNN` and `N-TP-NNN` are acceptance obligations; they are not reports of tests already executed.
+
+The owner-approved semantic extension is detailed in [module contracts](MODULE_CONTRACTS.md) and [implementation plan](SEMANTIC_IMPLEMENTATION_PLAN.md). TP-151–TP-160 add explicit meaning, handoff, approval-store and deployment-capability obligations. Historical baseline observations below retain their original revision.
 
 ## 1. Purpose and authority
 
@@ -57,7 +59,9 @@ Changes to canonical requirement meaning require project-owner review. Generated
 
 ### 1.4 Current evidence boundary
 
-A fresh local suite run for this document produced **55 passing tests, no skips, and two dependency deprecation warnings**. Actual DINOv3 architecture integration uses generated local weights. It verifies selected-layer gradients, patch pooling, fixture training, portable reload, evaluation, and heatmaps; it does not prove pretrained defect quality.
+The owner-approved semantic extension passes **115 tests**, including actual local DINOv3-to-Ray HTTP. See [source-bound evidence and live limits](SEMANTIC_TEST_STATUS.md). Its tested code snapshot is `f70973533d1571ce43dab3a5973808b0014f5d15ee8607f1185a5501f040d11b`. The historical baseline and live GPU evidence below retain their original bindings.
+
+The original requirements baseline suite produced **55 passing tests, no skips, and two dependency deprecation warnings**. Actual DINOv3 architecture integration uses generated local weights. It verifies selected-layer gradients, patch pooling, fixture training, portable reload, evaluation, and heatmaps; it does not prove pretrained defect quality.
 
 The prior live A100/GCS container probe passed for:
 
@@ -469,6 +473,16 @@ Evidence is valid only when identifiers, scope, preconditions, actual observatio
 - **Observed support:** The unchanged implementation at dbc04a3 was rerun for this document: 55 passed, no skips, two dependency deprecation warnings, 5.62 seconds.
 - **Limits:** A green local suite is a partial result. Complete deployed flow and live prevention acceptance remain incomplete.
 
+<a id="e-semantics"></a>
+
+### E-SEMANTICS — Semantic contracts and module integration
+
+- **Scope:** `local_semantic_implementation_and_integration`.
+- **Sources:** [docs/SEMANTIC_IMPLEMENTATION_PLAN.md](../docs/SEMANTIC_IMPLEMENTATION_PLAN.md), [docs/MODULE_CONTRACTS.md](../docs/MODULE_CONTRACTS.md), [docs/SEMANTIC_TEST_STATUS.md](../docs/SEMANTIC_TEST_STATUS.md), [src/defect_platform/semantics.py](../src/defect_platform/semantics.py), [src/defect_platform/catalog_store.py](../src/defect_platform/catalog_store.py), [src/defect_platform/infrastructure_contract.py](../src/defect_platform/infrastructure_contract.py), [tests/test_dataset_semantics.py](../tests/test_dataset_semantics.py), [tests/test_trainer_semantics.py](../tests/test_trainer_semantics.py), [tests/test_control_semantics.py](../tests/test_control_semantics.py), [tests/test_serving_semantics.py](../tests/test_serving_semantics.py), [tests/integration/test_semantic_ray_http.py](../tests/integration/test_semantic_ray_http.py), [docs/evidence/2026-09-28-semantic-contracts/local-acceptance.json](../docs/evidence/2026-09-28-semantic-contracts/local-acceptance.json).
+- **Selected tests:** `test_catalog_aliases_drive_labels_and_manifest_loader`, `test_class_order_rejected_before_torch_or_data_access`, `test_serving_rejects_wrong_class_meaning_or_model_identity`, `test_approved_dataset_dinov3_bundle_and_real_ray_http`
+- **Observed support:** Combined local acceptance: 115 passed, zero failures/skips, 64.11 seconds, 19 dependency warnings; actual CSV/image WebDataset creation, DINOv3 fixture training, portable reload, heatmaps and real Ray HTTP. Exact code/config/test hashes and package versions are recorded.
+- **Limits:** Generated weights/fixture images cannot establish real defect truth or pretrained quality. Capability records rely on protected operator authority; live GPU/MLflow/GKE/Loki/IAM gates remain incomplete.
+
 
 ## 6. Requirements register
 
@@ -489,6 +503,7 @@ Each entry's **How** names the required enforcing mechanism and responsible comp
 | [Telemetry, diagnostics, and failure ownership](#requirements-observability) | TP-117–TP-125 | 9 |
 | [Coding-agent roles and enforced authority](#requirements-security) | TP-126–TP-139 | 14 |
 | [Deployment, recovery, and full acceptance](#requirements-operations) | TP-140–TP-150 | 11 |
+| [Semantic module contracts and reviewed meaning](#requirements-semantics) | TP-151–TP-160 | 10 |
 
 <a id="requirements-mission"></a>
 
@@ -2693,6 +2708,170 @@ Each entry's **How** names the required enforcing mechanism and responsible comp
 - **Positive evidence — `P-TP-150` (required):** Review every requirement and close accepted evidence against the deployed revision.
 - **Negative evidence — `N-TP-150` (required):** Budget exhaustion, missing credentials/endpoints, a green test subset, or favorable documentation cannot be reported as full implementation completion.
 - **Current evidence:** E-ACCEPTANCE: current documentation states incomplete live acceptance; complete assurance gate remains pending. References: [E-ACCEPTANCE](#e-acceptance)
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="requirements-semantics"></a>
+
+### Semantic module contracts and reviewed meaning
+
+<a id="tp-151"></a>
+
+#### TP-151 — Version class meaning
+
+- **Requirement:** The platform shall bind each object vocabulary to a versioned ordered catalog of stable class IDs, definitions, aliases and recorded reference examples.
+- **What:** Class meaning becomes an explicit reviewed input and travels with artifacts.
+- **Why:** Spelling or encoding changes can otherwise silently relabel predictions.
+- **How:** Validate IDs and normalized names, retain catalog fingerprints, and claim catalog ID/version immutably in the operator store.
+- **Enforcement owner:** Dataset and primary contract owners.
+- **Positive evidence — `P-TP-151` (required):** Publish an explicit reviewed catalog, encode aliases, decode stable IDs, and retain the same meaning across a build and model reload.
+- **Negative evidence — `N-TP-151` (required):** A normalized alias cannot resolve to two classes; an unknown or out-of-range index cannot decode; the same catalog ID/version cannot be republished with changed content.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_approved_catalog_store_is_immutable_and_version_bound](../tests/test_semantics.py) — Reviewed catalog publishes and reloads by exact fingerprint; changed meaning needs a new version. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_catalog_rejects_ambiguous_aliases_and_invalid_indices](../tests/test_semantics.py) — Colliding normalized aliases and invalid vector indices are rejected. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-152"></a>
+
+#### TP-152 — Resolve approved catalog authority
+
+- **Requirement:** The production control service shall resolve the exact reviewed catalog from an operator-controlled store before accepting a paid training request.
+- **What:** A request cannot grant itself semantic authority.
+- **Why:** An agent or caller can write arbitrary review metadata into its own payload.
+- **How:** Use configured local/GCS approval roots; exact envelope fingerprints; separate read and publication permissions; recheck at dispatch.
+- **Enforcement owner:** Control and catalog operator.
+- **Positive evidence — `P-TP-152` (required):** An approved stored catalog admits its bound dataset and derives the canonical class order.
+- **Negative evidence — `N-TP-152` (required):** Missing, draft, legacy, unknown, substituted or mismatched catalogs cause rejection with no run creation, workflow, MLflow or Vertex effects.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_client_class_order_cannot_override_trusted_manifest_and_refs_are_persisted](../tests/test_control_semantics.py) — Trusted catalog determines admitted class order and durable/Vertex references. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_semantic_admission_rejects_before_run_or_external_side_effects](../tests/test_control_semantics.py) — Missing/untrusted/unreviewed/mutated semantic authority is rejected with no instrumented downstream effects. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-153"></a>
+
+#### TP-153 — Bind dataset semantics
+
+- **Requirement:** Each new dataset version shall bind its accepted catalog, mappings, source snapshot, split policy and assignment evidence in a verified semantic manifest.
+- **What:** Data outputs carry both bytes and declared meaning.
+- **Why:** A valid shard checksum alone cannot describe what its labels mean.
+- **How:** Include semantic identity in version construction; write a semantic envelope; include its bytes in committed dataset content; verify source/catalog/assignment bindings.
+- **Enforcement owner:** Dataset module.
+- **Positive evidence — `P-TP-153` (required):** Build from accepted CSV/BigQuery rows and reload the same semantic/source/assignment identity.
+- **Negative evidence — `N-TP-153` (required):** Changing a label definition changes dataset identity; payload/envelope/checksum/source substitution cannot be accepted.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_catalog_aliases_drive_labels_and_manifest_loader](../tests/test_dataset_semantics.py) — Built dataset reloads its catalog, accepted mapping and source/assignment evidence. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_semantic_manifest_tampering_is_rejected](../tests/test_dataset_semantics.py) — Changed semantic payload or checksum is rejected. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-154"></a>
+
+#### TP-154 — Preserve split routing
+
+- **Requirement:** Dataset consumers shall verify per-split shard routing, class labels and sample counts against the accepted manifest.
+- **What:** Training, validation and test remain distinct across module boundaries.
+- **Why:** Swapping lists preserves the union of checksums but leaks held-out data into training.
+- **How:** Check exact split keys, split-qualified filenames, record counts and labels, content digest and commit marker; return the exact verified semantic bytes.
+- **Enforcement owner:** Dataset verifier and trainer reader.
+- **Positive evidence — `P-TP-154` (required):** The builder output streams successfully into actual DINOv3 training with accepted split evidence.
+- **Negative evidence — `N-TP-154` (required):** Exchanged train/test routes, invalid labels/counts or a semantic file changing between reads cannot become accepted inputs.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_approved_dataset_dinov3_bundle_and_real_ray_http](../tests/integration/test_semantic_ray_http.py) — Actual builder shards train and produce a portable served result. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_verifier_rejects_shards_routed_to_the_wrong_split](../tests/test_dataset_semantics.py) — Swapped training/test URI routing is rejected even though shard union is unchanged. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-155"></a>
+
+#### TP-155 — Bind model semantics
+
+- **Requirement:** Model exports shall inherit dataset semantic/content identities and bind the full experiment, weights, runtime, preprocessing and training policy.
+- **What:** A model bundle explains and preserves its declared inputs and decisions.
+- **Why:** Portable weights without their original vocabulary and policy can serve a different task.
+- **How:** Export model semantics and original ExperimentConfig; compare its fingerprint and policy to the checkpoint before model construction.
+- **Enforcement owner:** Trainer module.
+- **Positive evidence — `P-TP-155` (required):** The trained portable model reloads with matching dataset parent, catalog and experiment fingerprints.
+- **Negative evidence — `N-TP-155` (required):** Reordered classes, altered optimizer/seed/normalization or a checkpoint experiment mismatch cannot reload as the approved model.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_exact_runtime_revision_changes_model_semantic_fingerprint](../tests/test_trainer_semantics.py) — Exact image/source lineage and pooling declaration participate in model semantic identity. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_training_manifest_fingerprint_binds_preprocessing_and_policy](../tests/test_trainer_semantics.py) — Changed policy cannot be accepted under the original model semantics. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-156"></a>
+
+#### TP-156 — Unify preprocessing
+
+- **Requirement:** Training, evaluation and inference shall use the same versioned preprocessing definition except for explicitly configured training augmentation.
+- **What:** Resize, color channels, normalization and interpolation have one implementation.
+- **Why:** Differences between training and serving can silently change predictions.
+- **How:** Generate transforms from PreprocessingSpec and record separate augmentation policy; validate finite positive normalization and model image size.
+- **Enforcement owner:** Trainer and serving.
+- **Positive evidence — `P-TP-156` (required):** Fixed crops receive matching evaluation/inference tensors and class outputs under the same bundle.
+- **Negative evidence — `N-TP-156` (required):** Unsupported color/interpolation, nonfinite normalization, incompatible image size or changed preprocessing identity is rejected.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_approved_dataset_dinov3_bundle_and_real_ray_http](../tests/integration/test_semantic_ray_http.py) — Declared preprocessing travels through real training/reload/inference; served class and review flag agree with local inference. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_normalization_rejects_nonfinite_or_nonpositive_values](../tests/test_semantics.py) — Invalid normalization is rejected. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-157"></a>
+
+#### TP-157 — Pin portable artifact integrity
+
+- **Requirement:** Releases and serving shall pin and verify the model integrity manifest checksum before deserializing or constructing the accepted model.
+- **What:** Artifact bytes are bound to the selected model version.
+- **Why:** An attacker can rewrite both a checkpoint and its own unpinned checksum list.
+- **How:** Checksum all bundle members; reject traversal, symlinks, extras and missing files; use weights-only loading and an externally pinned integrity SHA.
+- **Enforcement owner:** Trainer and release module.
+- **Positive evidence — `P-TP-157` (required):** The exported backbone reloads after original weights are removed and matches pinned bundle/model/catalog checksums.
+- **Negative evidence — `N-TP-157` (required):** Altered artifact plus rewritten local integrity manifest still fails the release pin; unsafe paths or missing proof cannot load.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_real_dinov3_webdataset_training_portable_reload_and_heatmap](../tests/test_dinov3_integration.py) — Portable export reloads after removing original weights. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_bundle_integrity_detects_artifact_tampering_and_unlisted_files](../tests/test_trainer_semantics.py) — Wrong external integrity fingerprint, changed checkpoint bytes and unlisted files fail verification. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-158"></a>
+
+#### TP-158 — Return stable prediction meaning
+
+- **Requirement:** Serving shall return stable class ID, canonical class name, model version and semantic/catalog fingerprints and validate their agreement.
+- **What:** Consumers can interpret a prediction without relying on index or spelling alone.
+- **Why:** A class name with a different ID/order can look valid while describing the wrong defect.
+- **How:** PredictionService resolves the returned name through its verified catalog and checks ID and fingerprints before returning a response.
+- **Enforcement owner:** Serving module.
+- **Positive evidence — `P-TP-158` (required):** Actual Ray HTTP returns the trained class identity, confidence, review flag and diagnostic heatmap.
+- **Negative evidence — `N-TP-158` (required):** Wrong class ID, unknown name, catalog substitution or different model semantic fingerprint cannot return a successful prediction.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_approved_dataset_dinov3_bundle_and_real_ray_http](../tests/integration/test_semantic_ray_http.py) — Real Ray HTTP returns the trained class ID, semantic/catalog hashes, confidence/review and heatmap. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_serving_rejects_wrong_class_meaning_or_model_identity](../tests/test_serving_semantics.py) — Wrong ID/name/catalog/model identity cannot return a successful prediction. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-159"></a>
+
+#### TP-159 — Pin release version and lineage
+
+- **Requirement:** Promotion and rollback shall validate approved catalog/model/bundle identities and configure the exact MLflow model version for serving.
+- **What:** A human approves one concrete portable bundle and its lineage.
+- **Why:** A mutable alias may move between deployment configuration and worker startup.
+- **How:** Stage against admitted run fingerprints; verify bundle before alias/ledger/deployment changes; render exact version and SHA environment settings.
+- **Enforcement owner:** Release operator and serving module.
+- **Positive evidence — `P-TP-159` (required):** Approved staged models deploy with their pinned version and rollback preserves the preceding verified release.
+- **Negative evidence — `N-TP-159` (required):** Missing or wrong semantic lineage, changed bundle or moving champion alias cannot silently select a different configured serving version.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_rayservice_pins_exact_model_version_and_semantic_bundle](../tests/test_serving_semantics.py) — Deployment carries exact model version plus catalog/semantic/bundle hashes. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_release_validation_failure_has_no_alias_ledger_or_deploy_effects](../tests/test_serving_semantics.py) — Failed bundle proof or missing semantic pin leaves alias, ledger and deploy spies untouched. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
+
+<a id="tp-160"></a>
+
+#### TP-160 — Require observed infrastructure contracts
+
+- **Requirement:** Production admission and delayed dispatch shall validate an operator-pinned, current infrastructure capability record against the requested job and runtime.
+- **What:** Infrastructure publishes observed deployment identity and supported module versions.
+- **Why:** Desired settings or stale acceptance can target the wrong project, service account, endpoints or runtime revision.
+- **How:** Check envelope pin, observation/expiry/readiness, project/region/service account, artifact roots and exact runtime digest/source; preserve the accepted capability fingerprint.
+- **Enforcement owner:** Infrastructure operator and control module.
+- **Positive evidence — `P-TP-160` (required):** A matching current acceptance record admits the corresponding module handoff.
+- **Negative evidence — `N-TP-160` (required):** Missing, stale, future, unready, unsupported or mismatched records reject before paid dispatch; a desired template is never automatically treated as live proof.
+- **Current evidence:** Implemented local controls; evidence is recorded in the semantic addendum. Complete deployed positive/negative acceptance remains pending. References: [E-SEMANTICS](#e-semantics)
+- **Observed positive support (observed_local_fixture):** [test_observed_infrastructure_contract_accepts_matching_revision](../tests/test_infrastructure_contract.py) — Current operator-declared matching capability validates. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
+- **Observed negative support (observed_local_fixture):** [test_infrastructure_rejects_stale_unready_and_changed_runtime](../tests/test_infrastructure_contract.py) — Stale/future/unready or changed runtime capability is rejected. **Limit:** Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending.
 - **Required scope:** `local`, `live_acceptance`. **Full verification:** pending.
 
 

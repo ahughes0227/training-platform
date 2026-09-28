@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "ValidationResults": {
+      "additionalProperties": false,
+      "properties": {
+        "container_gpu": {
+          "default": false,
+          "title": "Container Gpu",
+          "type": "boolean"
+        },
+        "gcs_read": {
+          "default": false,
+          "title": "Gcs Read",
+          "type": "boolean"
+        },
+        "gcs_write": {
+          "default": false,
+          "title": "Gcs Write",
+          "type": "boolean"
+        },
+        "trainer": {
+          "default": false,
+          "title": "Trainer",
+          "type": "boolean"
+        },
+        "vertex_gpu": {
+          "default": false,
+          "title": "Vertex Gpu",
+          "type": "boolean"
+        }
+      },
+      "title": "ValidationResults",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "certified": {
+      "default": false,
+      "title": "Certified",
+      "type": "boolean"
+    },
+    "certified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Certified At"
+    },
+    "cuda_version": {
+      "title": "Cuda Version",
+      "type": "string"
+    },
+    "image_digest": {
+      "title": "Image Digest",
+      "type": "string"
+    },
+    "image_tag": {
+      "title": "Image Tag",
+      "type": "string"
+    },
+    "python_version": {
+      "title": "Python Version",
+      "type": "string"
+    },
+    "pytorch_version": {
+      "title": "Pytorch Version",
+      "type": "string"
+    },
+    "runtime_id": {
+      "title": "Runtime Id",
+      "type": "string"
+    },
+    "runtime_version": {
+      "title": "Runtime Version",
+      "type": "string"
+    },
+    "source_commit": {
+      "title": "Source Commit",
+      "type": "string"
+    },
+    "validation": {
+      "$ref": "#/$defs/ValidationResults"
+    }
+  },
+  "required": [
+    "runtime_id",
+    "source_commit",
+    "image_tag",
+    "image_digest",
+    "runtime_version",
+    "python_version",
+    "pytorch_version",
+    "cuda_version",
+    "validation"
+  ],
+  "title": "CertifiedRuntime",
+  "type": "object"
+}

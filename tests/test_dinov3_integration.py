@@ -28,6 +28,7 @@ def tiny_dinov3(tmp_path, monkeypatch):
 @pytest.mark.parametrize("unfreeze", [0, 1])
 def test_real_dinov3_pooling_and_selected_layer_gradients(tiny_dinov3, unfreeze):
     import torch
+
     from defect_platform.trainer.model import build_model
 
     weights, digest = tiny_dinov3
@@ -59,7 +60,9 @@ def test_real_dinov3_refuses_unfreeze_past_depth(tiny_dinov3):
 def test_real_dinov3_webdataset_training_portable_reload_and_heatmap(tiny_dinov3, tmp_path):
     wds = pytest.importorskip("webdataset")
     from PIL import Image
+
     from defect_platform.contracts import ExperimentConfig, ModelSpec
+    from defect_platform.semantics import SemanticManifest, legacy_catalog
     from defect_platform.trainer.inference import load_inference_bundle, predict_crop
     from defect_platform.trainer.training import train_experiment
 
@@ -82,7 +85,9 @@ def test_real_dinov3_webdataset_training_portable_reload_and_heatmap(tiny_dinov3
         model=ModelSpec(weights_uri=str(weights), weights_sha256=digest, image_size=32,
                         hidden_dim=8, dropout=0, unfreeze_last_n=1),
     )
-    report = train_experiment(config, tmp_path, tmp_path / "output", ["scratch", "dent"], shards)
+    semantics = SemanticManifest(kind="dataset", object_slug="fixture", catalog=legacy_catalog("fixture", ["scratch", "dent"]), dataset_version_id="v1")
+    report = train_experiment(config, tmp_path, tmp_path / "output", ["scratch", "dent"], shards,
+                              semantic_manifest=semantics, dataset_sha256="b" * 64)
     # Reload must use the exported backbone, even when the original weights are gone.
     shutil.rmtree(weights)
     bundle = load_inference_bundle(tmp_path / "output" / "model")
@@ -94,4 +99,11 @@ def test_real_dinov3_webdataset_training_portable_reload_and_heatmap(tiny_dinov3
     assert len(explained["heatmap"]) == 2
     assert all(len(row) == 2 for row in explained["heatmap"])
     assert 0 <= explained["confidence"] <= 1
+    assert explained["class_id"] in legacy_catalog("fixture", ["scratch", "dent"]).class_ids
+    assert explained["catalog_sha256"] == bundle.catalog_sha256
+    assert explained["semantic_sha256"] == report["semantic_sha256"]
+    with pytest.raises(ValueError, match="fingerprint mismatch"):
+        load_inference_bundle(tmp_path / "output" / "model", expected_semantic_sha256="0" * 64)
+    with pytest.raises(ValueError, match="integrity manifest checksum mismatch"):
+        load_inference_bundle(tmp_path / "output" / "model", expected_bundle_sha256="0" * 64)
     assert report["validation"]["confusion"] and report["test"]["confusion"]

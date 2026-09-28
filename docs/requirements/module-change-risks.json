@@ -12,7 +12,7 @@
     "No model algorithm or accepted dataset semantics are intentionally changed."
   ],
   "scoring": {
-    "risk": "R = L × I. L is relative likelihood of regression during this migration; I is relative consequence. Both are subjective normalized ratings, not calibrated probabilities.",
+    "risk": "R = L \u00d7 I. L is relative likelihood of regression during this migration; I is relative consequence. Both are subjective normalized ratings, not calibrated probabilities.",
     "detection": "D is current evidence-backed ability to catch the specific regression before acceptance, across the scope it needs. Higher is better. It is not a measured probability or a guarantee.",
     "detection_anchors": {
       "0.00": "No credible detection mechanism.",
@@ -22,7 +22,7 @@
       "0.80": "Broad demonstrated detection including necessary environment/edge cases; small remaining gaps.",
       "1.00": "Ideal complete detection within an explicit bounded fault model; not claimed for this platform."
     },
-    "unnoticed_exposure": "U = R × (1 − D), a prioritization heuristic only. It is not expected financial loss or the probability of failure."
+    "unnoticed_exposure": "U = R \u00d7 (1 \u2212 D), a prioritization heuristic only. It is not expected financial loss or the probability of failure."
   },
   "evidence_limits": [
     "Code and named test assertions were inspected for this assessment.",
@@ -79,20 +79,36 @@
       "detection_score": 0.45,
       "origin": "Introduced/enlarged",
       "regression": "Class order, label meaning, split policy, preprocessing, pooling, or metric selection changes while the record still validates.",
-      "current_evidence": "Tests cover class matching, deterministic splits, DINOv3 pooling/gradients, and MCC/F1 selection.",
-      "detection_gap": "No unified semantic fingerprint or complete trainer-to-serving comparison.",
+      "current_evidence": "Semantic manifests now bind catalog/mappings/source/splits, preprocessing/pooling/selection/calibration policy, experiment and model lineage; producer/consumer rejection tests and actual local DINOv3-to-Ray integration are recorded in docs/SEMANTIC_TEST_STATUS.md.",
+      "detection_gap": "Local controls cannot establish real-world label truth, pretrained quality, every stochastic/numeric regression, authenticated reviewer identity, or deployed GPU/IAM/MLflow/GKE/Loki behavior. Live acceptance and source-bound final evidence remain required.",
       "required_detection_test": "Use a fixed dataset/model bundle to compare labels, splits, preprocessing, selected checkpoint, predictions, and review flags; deliberately reorder classes and change preprocessing to prove rejection.",
       "requirement_refs": [
         "TP-030",
         "TP-041",
-        "TP-054"
+        "TP-054",
+        "TP-151",
+        "TP-152",
+        "TP-153",
+        "TP-154",
+        "TP-155",
+        "TP-156",
+        "TP-157",
+        "TP-158",
+        "TP-159",
+        "TP-160"
       ],
       "source_paths": [
-        "tests/test_dinov3_integration.py"
+        "tests/test_dinov3_integration.py",
+        "src/defect_platform/semantics.py",
+        "tests/test_dataset_semantics.py",
+        "tests/test_control_semantics.py",
+        "tests/test_serving_semantics.py",
+        "tests/integration/test_semantic_ray_http.py",
+        "docs/SEMANTIC_TEST_STATUS.md"
       ],
       "unnoticed_exposure_index": 0.396,
       "mitigation": {
-        "status": "planned_unimplemented_unverified",
+        "status": "implemented_local_acceptance_pending_live_reassessment",
         "owner": "Dataset, trainer, and serving owners; primary integration review",
         "controls": [
           "Bind ordered classes, label rules, group/split assignments, preprocessing, pooling, calibration, and selection policy to semantic fingerprints.",
@@ -106,7 +122,8 @@
         "target_impact": 0.9,
         "target_residual_risk": 0.27,
         "actual_residual_risk": null,
-        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment."
+        "required_evidence": "Reviewed implementation; supported-contract semantic checks; recorded positive/negative cases at necessary scopes; exact source/image/config/environment/principal bindings; independent before/after state; owner reassessment.",
+        "local_evidence": "See docs/SEMANTIC_TEST_STATUS.md; implementation and tests do not lower the recorded risk score or establish the conditional target."
       }
     },
     {
@@ -817,7 +834,7 @@
     "date": "2026-09-28",
     "reviewed_repository_revision": "b45ca11e56a53a07897aca52b1d26ba038fde72c",
     "status": "planned_only_no_implementation_or_verification_claim",
-    "method": "Target residual R = target L × original I, rounded half up to two decimals. Original impacts are retained. Likelihood reductions require preventive controls plus verified gates. Detection alone is not multiplied into R.",
+    "method": "Target residual R = target L \u00d7 original I, rounded half up to two decimals. Original impacts are retained. Likelihood reductions require preventive controls plus verified gates. Detection alone is not multiplied into R.",
     "conditions": [
       "All controls in the specific mitigation are implemented and reviewed.",
       "Positive and negative checks pass at required local/live scopes with independently checked effects.",

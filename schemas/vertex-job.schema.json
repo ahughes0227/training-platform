@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "accelerator_count": {
+      "minimum": 1,
+      "title": "Accelerator Count",
+      "type": "integer"
+    },
+    "accelerator_type": {
+      "title": "Accelerator Type",
+      "type": "string"
+    },
+    "estimated_hourly_usd": {
+      "minimum": 0,
+      "title": "Estimated Hourly Usd",
+      "type": "number"
+    },
+    "machine_type": {
+      "title": "Machine Type",
+      "type": "string"
+    },
+    "max_run_cost_usd": {
+      "exclusiveMinimum": 0,
+      "title": "Max Run Cost Usd",
+      "type": "number"
+    },
+    "max_run_hours": {
+      "exclusiveMinimum": 0,
+      "title": "Max Run Hours",
+      "type": "number"
+    },
+    "network": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Network"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "region": {
+      "title": "Region",
+      "type": "string"
+    },
+    "service_account": {
+      "title": "Service Account",
+      "type": "string"
+    },
+    "staging_uri": {
+      "title": "Staging Uri",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "region",
+    "machine_type",
+    "accelerator_type",
+    "accelerator_count",
+    "service_account",
+    "staging_uri",
+    "max_run_hours",
+    "estimated_hourly_usd",
+    "max_run_cost_usd"
+  ],
+  "title": "VertexJobConfig",
+  "type": "object"
+}

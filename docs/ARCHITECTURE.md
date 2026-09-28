@@ -56,3 +56,7 @@ flowchart TB
 ## Model behavior
 
 DINOv3 ViT-S/16 produces spatial patch features; their pooled representation feeds a configurable MLP classifier. Inputs are single defect crops with exactly one class. Selection uses validation MCC then macro F1. A held-out test report includes both, per-class confusion, and confidence/review measurements. Heatmaps are gradient-based diagnostic overlays, not a defect segmentation mask or proof of cause. Low-confidence cases are routed for human review, and disposition is left to the consuming system.
+
+## Explicit module contracts
+
+Datasets, training and infrastructure exchange typed inputs/outputs with semantic identities. [Module contracts](MODULE_CONTRACTS.md) documents their schemas, authority, rejection conditions and migration. The catalog store is separate from dataset/artifact writer authority. Serving loads an exact MLflow version and pinned semantic/catalog/bundle fingerprints; moving an alias does not change a configured worker’s model.

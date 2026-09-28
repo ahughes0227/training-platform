@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "ClassCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_id": {
+          "minLength": 1,
+          "title": "Catalog Id",
+          "type": "string"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/ClassDefinition"
+          },
+          "minItems": 2,
+          "title": "Classes",
+          "type": "array"
+        },
+        "object_slug": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Object Slug",
+          "type": "string"
+        },
+        "review_status": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "reviewed",
+            "legacy"
+          ],
+          "title": "Review Status",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "reviewed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed By"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "version": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "catalog_id",
+        "object_slug",
+        "classes"
+      ],
+      "title": "ClassCatalog",
+      "type": "object"
+    },
+    "ClassDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "class_id": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Class Id",
+          "type": "string"
+        },
+        "definition": {
+          "default": "",
+          "title": "Definition",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "negative_examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Negative Examples",
+          "type": "array"
+        },
+        "positive_examples": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Positive Examples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "class_id",
+        "label"
+      ],
+      "title": "ClassDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "class_catalog": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClassCatalog"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "classes": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2,
+      "title": "Classes",
+      "type": "array"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "display_name": {
+      "title": "Display Name",
+      "type": "string"
+    },
+    "slug": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Slug",
+      "type": "string"
+    }
+  },
+  "required": [
+    "slug",
+    "display_name",
+    "classes"
+  ],
+  "title": "ObjectSpec",
+  "type": "object"
+}

@@ -9,15 +9,23 @@ import os
 import re
 import tempfile
 import uuid
-from datetime import UTC, datetime
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from defect_platform.catalog_store import ClassCatalogStore
 from defect_platform.contracts import (
-    CertifiedRuntime, DatasetVersion, ExperimentConfig, RunRecord, RunState, VertexJobConfig,
+    CertifiedRuntime,
+    DatasetVersion,
+    ExperimentConfig,
+    RunRecord,
+    RunState,
+    VertexJobConfig,
 )
 from defect_platform.control.store import RunStore
+from defect_platform.infrastructure_contract import InfrastructureCapabilities
+from defect_platform.semantics import SemanticManifest
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +41,8 @@ class DatasetCatalog(Protocol):
 class VertexSubmitter(Protocol):
     def submit(self, *, run_id: str, experiment: ExperimentConfig, dataset: DatasetVersion,
                runtime: CertifiedRuntime, job: VertexJobConfig, output_uri: str,
-               classes: list[str], mlflow_run_id: str | None = None,
+               classes: list[str], semantic_refs: dict[str, str] | None = None,
+               mlflow_run_id: str | None = None,
                mlflow_tracking_uri: str | None = None) -> str: ...
 
 
@@ -69,9 +78,13 @@ def classify_failure(error: BaseException) -> tuple[str, str]:
 class RunController:
     def __init__(self, *, store: RunStore, runtimes: RuntimeCatalog, datasets: DatasetCatalog,
                  vertex: VertexSubmitter | None = None, workflows: WorkflowStarter | None = None,
-                 tracker: ExperimentTracker | None = None, clock=lambda: datetime.now(UTC)):
+                 tracker: ExperimentTracker | None = None, catalogs: ClassCatalogStore | None = None,
+                 semantic_loader=None, capabilities: InfrastructureCapabilities | None = None,
+                 require_capabilities: bool = False, clock=lambda: datetime.now(UTC)):
         self.store, self.runtimes, self.datasets = store, runtimes, datasets
-        self.vertex, self.workflows, self.tracker, self.clock = vertex, workflows, tracker, clock
+        self.vertex, self.workflows, self.tracker, self.catalogs = vertex, workflows, tracker, catalogs
+        self.semantic_loader, self.clock = semantic_loader, clock
+        self.capabilities, self.require_capabilities = capabilities, require_capabilities
 
     @staticmethod
     def estimate_cost(job: VertexJobConfig) -> float:
@@ -100,22 +113,66 @@ class RunController:
             raise ValueError("dataset version does not match experiment dataset_version_id")
         if runtime.runtime_id != experiment.runtime_id:
             raise ValueError("runtime record does not match experiment runtime_id")
-        if not classes or len(classes) < 2 or len(set(classes)) != len(classes):
-            raise ValueError("canonical object classes must be provided as two or more unique labels")
-        from defect_platform.dataset import verify_dataset_version
-        verify_dataset_version(dataset, expected_classes=classes)
+        # Caller supplied classes are hints only. The authority is the independently
+        # verified dataset manifest and the exact catalog loaded from the operator store.
+        if self.catalogs is None:
+            raise ValueError("trusted class catalog store is not configured")
+        if not dataset.semantic_sha256 or not dataset.semantic_manifest_uri:
+            raise ValueError("dataset has no verified semantic manifest reference")
+        if self.semantic_loader is None:
+            from defect_platform.dataset import load_dataset_semantics
+            loader = load_dataset_semantics
+        else:
+            loader = self.semantic_loader
+        semantic_value = loader(dataset)
+        semantic = SemanticManifest.model_validate(
+            semantic_value.model_dump(mode="json") if isinstance(semantic_value, SemanticManifest)
+            else semantic_value)
+        if semantic.kind != "dataset" or semantic.sha256 != dataset.semantic_sha256:
+            raise ValueError("dataset semantic manifest is missing, unverified, or mismatched")
+        if semantic.dataset_version_id != dataset.version_id or semantic.object_slug != dataset.object_slug:
+            raise ValueError("dataset semantic identity does not match dataset version")
+        catalog = self.catalogs.get_catalog(dataset.object_slug, semantic.catalog.sha256)
+        if catalog is None:
+            raise ValueError("matching class catalog is not present in the trusted catalog store")
+        if catalog.sha256 != semantic.catalog.sha256 or catalog.object_slug != experiment.object_slug:
+            raise ValueError("trusted class catalog fingerprint or object does not match dataset semantics")
+        if catalog.review_status != "reviewed":
+            raise ValueError("paid training requires an explicitly reviewed class catalog")
+        canonical_classes = catalog.labels
+        if classes is not None and classes != canonical_classes:
+            raise ValueError("requested class order does not match trusted catalog")
+        if semantic.catalog.sha256 != catalog.sha256 or semantic.catalog.labels != canonical_classes:
+            raise ValueError("dataset class meaning/order does not match trusted catalog")
+        if experiment.catalog_sha256 and experiment.catalog_sha256 != catalog.sha256:
+            raise ValueError("experiment catalog fingerprint does not match trusted dataset catalog")
+        if self.require_capabilities and self.capabilities is None:
+            raise ValueError("operator-pinned infrastructure capabilities are required for paid submission")
+        if self.capabilities is not None:
+            if getattr(self.tracker, "tracking_uri", None) != self.capabilities.mlflow_uri:
+                raise ValueError("MLflow tracking URI differs from observed infrastructure capability")
+            self.capabilities.validate_training(job, runtime, dataset, now=self.clock())
+        semantic_refs = {"dataset_semantic_sha256": semantic.sha256,
+                         "catalog_sha256": catalog.sha256}
         now = self.clock()
         run_id = str(uuid.uuid4())
         output_uri = f"gs://{job.staging_uri.removeprefix('gs://').rstrip('/')}/runs/{run_id}"
         run = RunRecord(run_id=run_id, object_slug=experiment.object_slug,
                         experiment_id=experiment.experiment_id,
                         dataset_version_id=dataset.version_id, runtime_id=runtime.runtime_id,
-                        state=RunState.PENDING, created_at=now, output_uri=output_uri)
+                        state=RunState.PENDING, created_at=now, output_uri=output_uri,
+                        catalog_sha256=catalog.sha256,
+                        dataset_semantic_sha256=semantic.sha256,
+                        runtime_image_digest=runtime.image_digest,
+                        runtime_source_commit=runtime.source_commit)
         payload = {"idempotency_key": idempotency_key,
                    "experiment": experiment.model_dump(mode="json"),
                    "job": job.model_dump(mode="json"), "runtime": runtime.model_dump(mode="json"),
                    "dataset": dataset.model_dump(mode="json"), "estimated_cost_usd": estimated,
-                   "classes": classes, "output_uri": output_uri}
+                   "classes": canonical_classes, "semantic": semantic.model_dump(mode="json"),
+                   "semantic_refs": semantic_refs, "output_uri": output_uri}
+        if self.capabilities is not None:
+            payload["infrastructure_capabilities_sha256"] = self.capabilities.sha256
         # Generated IDs and output locations must not change the fingerprint on retry.
         fingerprint_data = {key: value for key, value in payload.items()
                             if key not in {"output_uri", "idempotency_key"}}
@@ -138,7 +195,8 @@ class RunController:
             elif self.vertex:
                 job_name = self.vertex.submit(run_id=record.run_id, experiment=experiment,
                                               dataset=dataset, runtime=runtime, job=job,
-                                              output_uri=output_uri, classes=classes,
+                                              output_uri=output_uri, classes=canonical_classes,
+                                              semantic_refs=semantic_refs,
                                               mlflow_run_id=record.mlflow_run_id,
                                               mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None))
                 record = record.model_copy(update={"state": RunState.SUBMITTED,
@@ -175,9 +233,46 @@ class RunController:
         job = VertexJobConfig.model_validate(payload["job"])
         dataset = DatasetVersion.model_validate(payload["dataset"])
         runtime = CertifiedRuntime.model_validate(payload["runtime"])
+        if self.require_capabilities and self.capabilities is None:
+            raise ValueError("operator-pinned infrastructure capabilities are required for paid submission")
+        if self.capabilities is not None:
+            if payload.get("infrastructure_capabilities_sha256") != self.capabilities.sha256:
+                raise ValueError("stored run infrastructure capability fingerprint is invalid")
+            if getattr(self.tracker, "tracking_uri", None) != self.capabilities.mlflow_uri:
+                raise ValueError("MLflow tracking URI differs from observed infrastructure capability")
+            self.capabilities.validate_training(job, runtime, dataset, now=self.clock())
+        # Revalidate the exact catalog before a stored run can trigger a paid action.
+        semantic_value = payload["semantic"]
+        semantic = SemanticManifest.model_validate(
+            semantic_value.model_dump(mode="json") if isinstance(semantic_value, SemanticManifest)
+            else semantic_value)
+        refs = payload["semantic_refs"]
+        if semantic.sha256 != refs.get("dataset_semantic_sha256") or semantic.sha256 != dataset.semantic_sha256:
+            raise ValueError("stored dataset semantic fingerprint is invalid")
+        if (current.catalog_sha256 != refs.get("catalog_sha256")
+                or current.dataset_semantic_sha256 != semantic.sha256):
+            raise ValueError("run record semantic references do not match stored request")
+        if self.semantic_loader is None:
+            from defect_platform.dataset import load_dataset_semantics
+            verified_now = load_dataset_semantics(dataset)
+        else:
+            verified_value = self.semantic_loader(dataset)
+            verified_now = SemanticManifest.model_validate(
+                verified_value.model_dump(mode="json") if isinstance(verified_value, SemanticManifest)
+                else verified_value)
+        if verified_now.sha256 != semantic.sha256:
+            raise ValueError("dataset semantic proof changed since run admission")
+        if self.catalogs is None:
+            raise ValueError("trusted class catalog store is not configured")
+        catalog = self.catalogs.get_catalog(dataset.object_slug, refs.get("catalog_sha256", ""))
+        if catalog is None or catalog.review_status != "reviewed" or catalog.sha256 != semantic.catalog.sha256:
+            raise ValueError("stored run no longer resolves to its reviewed trusted class catalog")
+        if catalog.labels != payload["classes"]:
+            raise ValueError("stored run class order does not match trusted catalog")
         name = self.vertex.submit(run_id=run_id, experiment=experiment, dataset=dataset,
                                   runtime=runtime, job=job, output_uri=payload["output_uri"],
-                                  classes=payload["classes"], mlflow_run_id=current.mlflow_run_id,
+                                  classes=payload["classes"], semantic_refs=refs,
+                                  mlflow_run_id=current.mlflow_run_id,
                                   mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None))
         self.update_state(run_id, RunState.SUBMITTED, vertex_job_name=name)
         return name
@@ -246,7 +341,8 @@ class VertexAiplatformSubmitter:
 
     def submit(self, *, run_id: str, experiment: ExperimentConfig, dataset: DatasetVersion,
                runtime: CertifiedRuntime, job: VertexJobConfig, output_uri: str,
-               classes: list[str], mlflow_run_id: str | None = None,
+               classes: list[str], semantic_refs: dict[str, str] | None = None,
+               mlflow_run_id: str | None = None,
                mlflow_tracking_uri: str | None = None) -> str:
         try:
             from google.cloud import aiplatform_v1
@@ -272,6 +368,8 @@ class VertexAiplatformSubmitter:
             job.staging_uri, run_id, {
                 "experiment": experiment.model_dump(mode="json"),
                 "dataset": dataset.model_dump(mode="json"), "classes": classes,
+                "runtime": runtime.model_dump(mode="json"),
+                "semantic_refs": semantic_refs,
                 "output_uri": output_uri, "mlflow_run_id": mlflow_run_id,
                 "mlflow_tracking_uri": mlflow_tracking_uri,
             }
@@ -354,6 +452,10 @@ class MLflowTracker:
         tags = {"platform.run_id": run.run_id, "object.slug": run.object_slug,
                 "dataset.version": dataset.version_id, "dataset.sha256": dataset.sha256,
                 "runtime.id": runtime.runtime_id, "runtime.image_digest": runtime.image_digest}
+        if run.catalog_sha256:
+            tags["class_catalog.sha256"] = run.catalog_sha256
+        if run.dataset_semantic_sha256:
+            tags["dataset.semantic_sha256"] = run.dataset_semantic_sha256
         with self._auth():
             active = client.create_run(experiment_id=experiment_id, tags=tags,
                                        run_name=run.experiment_id)

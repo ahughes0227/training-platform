@@ -1,5 +1,7 @@
 output "dataset_bucket" { value = google_storage_bucket.datasets.name }
 output "artifact_bucket" { value = google_storage_bucket.artifacts.name }
+output "class_catalog_root" { value = "gs://${google_storage_bucket.catalogs.name}/approved" }
+output "infrastructure_capability_prefix" { value = "gs://${google_storage_bucket.catalogs.name}/infrastructure" }
 output "release_ledger_uri" { value = "gs://${google_storage_bucket.artifacts.name}/releases" }
 output "artifact_registry_repository" { value = google_artifact_registry_repository.images.id }
 output "control_url" { value = google_cloud_run_v2_service.control.uri }

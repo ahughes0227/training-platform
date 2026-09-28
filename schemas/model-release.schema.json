@@ -1,0 +1,124 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "approved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved At"
+    },
+    "approved_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved By"
+    },
+    "bundle_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bundle Sha256"
+    },
+    "catalog_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Sha256"
+    },
+    "dataset_version_id": {
+      "title": "Dataset Version Id",
+      "type": "string"
+    },
+    "model_name": {
+      "title": "Model Name",
+      "type": "string"
+    },
+    "model_semantic_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Semantic Sha256"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "object_slug": {
+      "title": "Object Slug",
+      "type": "string"
+    },
+    "release_id": {
+      "title": "Release Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime_id": {
+      "title": "Runtime Id",
+      "type": "string"
+    },
+    "serving_image_digest": {
+      "pattern": "^[^\\s]+@sha256:[a-f0-9]{64}$",
+      "title": "Serving Image Digest",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "staged",
+        "promoted",
+        "rolled_back"
+      ],
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "object_slug",
+    "model_name",
+    "model_version",
+    "release_id",
+    "run_id",
+    "dataset_version_id",
+    "runtime_id",
+    "serving_image_digest",
+    "state"
+  ],
+  "title": "ModelRelease",
+  "type": "object"
+}

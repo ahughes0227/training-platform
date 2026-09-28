@@ -1,0 +1,25 @@
+# Desired settings are not evidence. Populate after live checks using operator authority.
+# Convert to an envelope with serialize_capabilities; pin its SHA in the control service.
+schema_version: 1
+capability_id: CHANGE_ME_ACCEPTANCE_RECORD
+deployment_revision: CHANGE_ME_SHA256_OF_DEPLOYMENT
+project: CHANGE_ME
+region: CHANGE_ME
+observed_at: CHANGE_ME_UTC_TIMESTAMP
+expires_at: CHANGE_ME_UTC_TIMESTAMP
+readiness: unready
+dataset_root_uri: gs://CHANGE_ME_DATASETS
+artifact_root_uri: gs://CHANGE_ME_ARTIFACTS
+trainer_service_account: CHANGE_ME
+control_url: https://CHANGE_ME
+mlflow_uri: https://CHANGE_ME
+otlp_endpoint: null
+serving_url: null
+certified_sources:
+  "REGISTRY/TRAINER@sha256:CHANGE_ME": CHANGE_ME_FULL_SOURCE_COMMIT
+supported_contracts:
+  class_catalog: 1
+  dataset_semantics: 1
+  model_semantics: 1
+evidence_uris:
+  - gs://CHANGE_ME/acceptance/vertex-handshake.json

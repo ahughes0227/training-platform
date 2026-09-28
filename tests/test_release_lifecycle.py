@@ -16,11 +16,15 @@ def candidate(version: str) -> ModelRelease:
         dataset_version_id="ds-1", runtime_id="runtime-1",
         serving_image_digest="registry/serve@sha256:" + "a" * 64,
         state="staged",
+        catalog_sha256="b" * 64, model_semantic_sha256="c" * 64, bundle_sha256="d" * 64,
     )
 
 
 class Registry:
     alias: str | None = None
+
+    def verify_release(self, release):
+        assert release.bundle_sha256 == "d" * 64
 
     def get_model_version(self, name, version):
         return SimpleNamespace(version=version)

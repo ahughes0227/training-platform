@@ -1,24 +1,26 @@
 # Defect Training Platform — Full System Requirements
 
-**Version:** 1.0
+**Version:** 1.1
 
 **Date:** September 28, 2026
 
 **Status:** Requirements baseline for implementation and acceptance; full platform acceptance is incomplete.
 
-**Implementation reviewed:** `dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15`
+**Historical implementation baseline reviewed:** `dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15`
 
 **Audience:** Project owner, dataset reviewers, coding agents, platform operators, and acceptance reviewers.
 
 ## How to use this document
 
-This document contains **150 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
+This document contains **160 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
 
 Read the lifecycle and assurance sections first. Use the section index to find a feature, then its `TP-NNN` identifier to track implementation and evidence. A requirement is a target obligation, not a claim that the current code already satisfies it.
 
 The canonical structured register is [requirements.json](requirements/requirements.json). The surrounding specification is authored in [context.md](requirements/context.md). This document is generated from both, with the evidence catalog. [baseline.json](requirements/baseline.json) records the local test observation used here. Run `python scripts/requirements_document.py --check` to validate document consistency; use `--write` to regenerate after an intentional specification change.
 
 **“Positive evidence” describes successful required behavior. “Negative evidence” describes an attempted opposite or prohibited behavior being prevented.** Known defects and missing evidence are recorded separately. Procedures labeled `P-TP-NNN` and `N-TP-NNN` are acceptance obligations; they are not reports of tests already executed.
+
+The owner-approved semantic extension is detailed in [module contracts](MODULE_CONTRACTS.md) and [implementation plan](SEMANTIC_IMPLEMENTATION_PLAN.md). TP-151–TP-160 add explicit meaning, handoff, approval-store and deployment-capability obligations. Historical baseline observations below retain their original revision.
 
 ## 1. Purpose and authority
 
@@ -57,7 +59,9 @@ Changes to canonical requirement meaning require project-owner review. Generated
 
 ### 1.4 Current evidence boundary
 
-A fresh local suite run for this document produced **55 passing tests, no skips, and two dependency deprecation warnings**. Actual DINOv3 architecture integration uses generated local weights. It verifies selected-layer gradients, patch pooling, fixture training, portable reload, evaluation, and heatmaps; it does not prove pretrained defect quality.
+The owner-approved semantic extension passes **115 tests**, including actual local DINOv3-to-Ray HTTP. See [source-bound evidence and live limits](SEMANTIC_TEST_STATUS.md). Its tested code snapshot is `f70973533d1571ce43dab3a5973808b0014f5d15ee8607f1185a5501f040d11b`. The historical baseline and live GPU evidence below retain their original bindings.
+
+The original requirements baseline suite produced **55 passing tests, no skips, and two dependency deprecation warnings**. Actual DINOv3 architecture integration uses generated local weights. It verifies selected-layer gradients, patch pooling, fixture training, portable reload, evaluation, and heatmaps; it does not prove pretrained defect quality.
 
 The prior live A100/GCS container probe passed for:
 

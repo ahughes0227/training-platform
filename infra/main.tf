@@ -33,6 +33,42 @@ resource "google_storage_bucket" "artifacts" {
   depends_on = [google_project_service.required]
 }
 
+# Catalog approval authority is separated from dataset/trainer write authority.
+resource "google_storage_bucket" "catalogs" {
+  name                        = var.class_catalog_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  versioning { enabled = true }
+  depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket_iam_member" "catalog_readers" {
+  for_each = {
+    control = google_service_account.control.email
+    trainer = google_service_account.trainer.email
+    serve   = google_service_account.serve.email
+    dataset = google_service_account.dataset.email
+  }
+  bucket = google_storage_bucket.catalogs.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${each.value}"
+}
+
+resource "google_storage_bucket_iam_member" "catalog_operator_creates" {
+  for_each = toset(var.catalog_operator_members)
+  bucket   = google_storage_bucket.catalogs.name
+  role     = "roles/storage.objectCreator"
+  member   = each.value
+}
+
+resource "google_storage_bucket_iam_member" "catalog_operator_reads" {
+  for_each = toset(var.catalog_operator_members)
+  bucket   = google_storage_bucket.catalogs.name
+  role     = "roles/storage.objectViewer"
+  member   = each.value
+}
+
 resource "google_artifact_registry_repository" "images" {
   location      = var.region
   repository_id = "${var.name_prefix}-images"
@@ -341,6 +377,18 @@ resource "google_cloud_run_v2_service" "control" {
       env {
         name  = "DEFECT_GCP_PROJECT"
         value = var.project_id
+      }
+      env {
+        name  = "DEFECT_CLASS_CATALOG_ROOT"
+        value = "gs://${google_storage_bucket.catalogs.name}/approved"
+      }
+      env {
+        name  = "DEFECT_INFRA_CAPABILITIES_FILE"
+        value = var.infrastructure_capabilities_sha256 == "" ? "" : "gs://${google_storage_bucket.catalogs.name}/infrastructure/${var.infrastructure_capabilities_sha256}.json"
+      }
+      env {
+        name  = "DEFECT_INFRA_CAPABILITIES_SHA256"
+        value = var.infrastructure_capabilities_sha256
       }
       env {
         name  = "GOOGLE_CLOUD_PROJECT"

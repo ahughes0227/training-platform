@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "LabelReviewEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_mapping_additions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Accepted Mapping Additions",
+          "type": "object"
+        },
+        "preview_before_review": {
+          "items": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "title": "Preview Before Review",
+          "type": "array"
+        },
+        "reviewed_at": {
+          "format": "date-time",
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "reviewer": {
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reviewer",
+        "reviewed_at",
+        "accepted_mapping_additions",
+        "preview_before_review"
+      ],
+      "title": "LabelReviewEvidence",
+      "type": "object"
+    },
+    "LabelSource": {
+      "additionalProperties": false,
+      "properties": {
+        "group_id_column": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group Id Column"
+        },
+        "image_root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Root"
+        },
+        "image_uri_column": {
+          "default": "image_uri",
+          "title": "Image Uri Column",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind"
+        },
+        "label_column": {
+          "default": "label",
+          "title": "Label Column",
+          "type": "string"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "sample_id_column": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id Column"
+        }
+      },
+      "required": [
+        "kind",
+        "location"
+      ],
+      "title": "LabelSource",
+      "type": "object"
+    },
+    "SourceKind": {
+      "enum": [
+        "csv",
+        "bigquery"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    },
+    "SplitSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "seed": {
+          "default": 42,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "test": {
+          "default": 0.15,
+          "title": "Test",
+          "type": "number"
+        },
+        "train": {
+          "default": 0.7,
+          "title": "Train",
+          "type": "number"
+        },
+        "validation": {
+          "default": 0.15,
+          "title": "Validation",
+          "type": "number"
+        }
+      },
+      "title": "SplitSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "label_mapping": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Label Mapping",
+      "type": "object"
+    },
+    "label_review": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LabelReviewEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "object_slug": {
+      "title": "Object Slug",
+      "type": "string"
+    },
+    "output_uri": {
+      "title": "Output Uri",
+      "type": "string"
+    },
+    "shard_max_samples": {
+      "default": 1000,
+      "exclusiveMinimum": 0,
+      "title": "Shard Max Samples",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/LabelSource"
+      },
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "split": {
+      "$ref": "#/$defs/SplitSpec"
+    }
+  },
+  "required": [
+    "object_slug",
+    "sources",
+    "output_uri"
+  ],
+  "title": "DatasetSpec",
+  "type": "object"
+}

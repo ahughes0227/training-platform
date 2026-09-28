@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "ModelSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "backbone": {
+          "default": "facebook/dinov3-vits16-pretrain-lvd1689m",
+          "title": "Backbone",
+          "type": "string"
+        },
+        "dropout": {
+          "default": 0.2,
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Dropout",
+          "type": "number"
+        },
+        "hidden_dim": {
+          "default": 256,
+          "exclusiveMinimum": 0,
+          "title": "Hidden Dim",
+          "type": "integer"
+        },
+        "image_size": {
+          "default": 256,
+          "exclusiveMinimum": 0,
+          "title": "Image Size",
+          "type": "integer"
+        },
+        "preprocessing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PreprocessingSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unfreeze_last_n": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Unfreeze Last N",
+          "type": "integer"
+        },
+        "weights_sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Weights Sha256",
+          "type": "string"
+        },
+        "weights_uri": {
+          "title": "Weights Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "weights_uri",
+        "weights_sha256"
+      ],
+      "title": "ModelSpec",
+      "type": "object"
+    },
+    "PreprocessingSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "const": "RGB",
+          "default": "RGB",
+          "title": "Channels",
+          "type": "string"
+        },
+        "image_size": {
+          "exclusiveMinimum": 0,
+          "title": "Image Size",
+          "type": "integer"
+        },
+        "interpolation": {
+          "const": "bilinear",
+          "default": "bilinear",
+          "title": "Interpolation",
+          "type": "string"
+        },
+        "normalization_mean": {
+          "default": [
+            0.485,
+            0.456,
+            0.406
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normalization Mean",
+          "type": "array"
+        },
+        "normalization_std": {
+          "default": [
+            0.229,
+            0.224,
+            0.225
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normalization Std",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "image_size"
+      ],
+      "title": "PreprocessingSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "batch_size": {
+      "default": 32,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "catalog_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Catalog Sha256"
+    },
+    "class_weights": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Class Weights",
+      "type": "object"
+    },
+    "dataset_version_id": {
+      "title": "Dataset Version Id",
+      "type": "string"
+    },
+    "epochs": {
+      "default": 10,
+      "exclusiveMinimum": 0,
+      "title": "Epochs",
+      "type": "integer"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "focal_gamma": {
+      "default": 2.0,
+      "minimum": 0,
+      "title": "Focal Gamma",
+      "type": "number"
+    },
+    "horizontal_flip_probability": {
+      "default": 0.5,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Horizontal Flip Probability",
+      "type": "number"
+    },
+    "learning_rate": {
+      "default": 0.001,
+      "exclusiveMinimum": 0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "loss": {
+      "default": "cross_entropy",
+      "enum": [
+        "cross_entropy",
+        "focal"
+      ],
+      "title": "Loss",
+      "type": "string"
+    },
+    "max_review_error_rate": {
+      "anyOf": [
+        {
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Review Error Rate"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelSpec"
+    },
+    "object_slug": {
+      "title": "Object Slug",
+      "type": "string"
+    },
+    "optimizer": {
+      "default": "adamw",
+      "enum": [
+        "adamw",
+        "sgd"
+      ],
+      "title": "Optimizer",
+      "type": "string"
+    },
+    "runtime_id": {
+      "title": "Runtime Id",
+      "type": "string"
+    },
+    "seed": {
+      "default": 42,
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "object_slug",
+    "dataset_version_id",
+    "runtime_id",
+    "model"
+  ],
+  "title": "ExperimentConfig",
+  "type": "object"
+}

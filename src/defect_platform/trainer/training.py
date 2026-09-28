@@ -6,10 +6,20 @@ import json
 import logging
 import math
 import random
+import re
 from pathlib import Path
 from typing import Any
 
 from ..contracts import ExperimentConfig
+from ..semantics import (
+    SemanticManifest,
+    assert_training_compatible,
+    make_training_manifest,
+    normalize_name,
+    parse_manifest,
+    serialize_manifest,
+    write_manifest,
+)
 from .metrics import calibrate_abstention, evaluate_predictions
 from .model import build_model
 
@@ -25,21 +35,37 @@ def _torch_modules():
     return torch, nn
 
 
-def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], image_size: int,
+def _resolve_target(label: Any, class_to_idx: dict[str, int], num_classes: int) -> int:
+    if isinstance(label, bytes):
+        label = label.decode("utf-8")
+    if isinstance(label, str):
+        normalized = normalize_name(label)
+        if normalized in class_to_idx:
+            return class_to_idx[normalized]
+        if re.fullmatch(r"0|[1-9][0-9]*", label):
+            target = int(label)
+        else:
+            raise ValueError(f"unknown class label: {label}")
+    elif isinstance(label, int) and not isinstance(label, bool):
+        target = label
+    else:
+        raise TypeError("class label must be a canonical string or integer class index")
+    if not 0 <= target < num_classes:
+        raise ValueError(f"class index {target} is outside [0, {num_classes})")
+    return target
+
+
+def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], num_classes: int, preprocessing,
                       training: bool, horizontal_flip_probability: float = 0.5):
     """Build a WebDataset stream; records need an image member and label/class."""
     try:
-        import torchvision.transforms as T
         import webdataset as wds
         from PIL import Image
     except ImportError as exc:
         raise RuntimeError("WebDataset training requires webdataset, Pillow and torchvision") from exc
-    transform = T.Compose([
-        T.Resize((image_size, image_size)),
-        T.RandomHorizontalFlip(p=horizontal_flip_probability) if training else T.Lambda(lambda image: image),
-        T.ToTensor(),
-        T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ])
+    from .preprocessing import image_transform
+    transform = image_transform(preprocessing, training=training,
+                                horizontal_flip_probability=horizontal_flip_probability)
 
     def convert(sample):
         image_bytes = next((value for key, value in sample.items()
@@ -52,12 +78,7 @@ def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], image_siz
         label = metadata.get("label", metadata.get("class"))
         if label is None:
             label = sample.get("label", sample.get("cls"))
-        if isinstance(label, bytes):
-            label = label.decode("utf-8")
-        if isinstance(label, str) and label in class_to_idx:
-            target = class_to_idx[label]
-        else:
-            target = int(label)
+        target = _resolve_target(label, class_to_idx, num_classes)
         if isinstance(image_bytes, Image.Image):
             tensor = transform(image_bytes.convert("RGB"))
         else:
@@ -65,19 +86,39 @@ def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], image_siz
                 tensor = transform(im.convert("RGB"))
         return tensor, target
 
-    return wds.WebDataset(shards, shardshuffle=100 if training else False).decode().map(convert)
+    # Parse only our image/JSON/label members. Generic decoding coerces named
+    # .cls labels to int and may deserialize arbitrary pickle members.
+    return wds.WebDataset(shards, shardshuffle=100 if training else False).map(convert)
 
 
 def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
                            output_dir: str | Path, classes: list[str],
                            shard_uris: dict[str, list[str]] | None = None,
+                           semantic_manifest: SemanticManifest | None = None,
+                           dataset_sha256: str | None = None,
                            mlflow_tracking_uri: str | None = None,
-                           mlflow_run_id: str | None = None) -> dict[str, Any]:
+                           mlflow_run_id: str | None = None,
+                           runtime_image_digest: str | None = None,
+                           runtime_source_commit: str | None = None) -> dict[str, Any]:
     """Train from immutable WebDataset shards and persist an evaluated checkpoint.
 
     ``dataset_root`` can be local or gs://. Multi-GPU training uses PyTorch
     DataParallel on the single Vertex machine as specified by accelerator_count.
     """
+    # Resolve and validate semantics before loading model weights or reading shards.
+    if semantic_manifest is None:
+        raise ValueError("verified dataset semantic manifest is required for training")
+    if not isinstance(semantic_manifest, SemanticManifest):
+        semantic_manifest = SemanticManifest.model_validate(semantic_manifest)
+    if semantic_manifest.kind != "dataset":
+        raise ValueError("training requires a verified dataset semantic manifest")
+    if dataset_sha256 is None:
+        raise ValueError("verified dataset content SHA256 is required for model semantics")
+    semantic_manifest = parse_manifest(serialize_manifest(semantic_manifest))
+    training_manifest = make_training_manifest(semantic_manifest, config,
+        dataset_sha256=dataset_sha256, runtime_image_digest=runtime_image_digest,
+        runtime_source_commit=runtime_source_commit)
+    assert_training_compatible(training_manifest, config, classes)
     torch, nn = _torch_modules()
     import numpy as np
     from torch.utils.data import DataLoader
@@ -103,7 +144,12 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
     if shard_uris is None:
         root = str(dataset_root).rstrip("/")
         shard_uris = {split: [f"{root}/{split}-*.tar"] for split in ("train", "validation", "test")}
-    class_to_idx = {name: i for i, name in enumerate(classes)}
+    class_to_idx = {}
+    for index, item in enumerate(semantic_manifest.catalog.classes):
+        for label in (item.label, item.class_id, *item.aliases):
+            class_to_idx[normalize_name(label)] = index
+    for alias, label in semantic_manifest.label_mapping.items():
+        class_to_idx[normalize_name(alias)] = semantic_manifest.catalog.encode(label)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(len(classes), config.model.hidden_dim, config.model.dropout,
                         config.model.unfreeze_last_n, config.model.backbone, config.model.weights_uri,
@@ -134,8 +180,8 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
         return focal.mean()
 
     loaders = {
-        split: DataLoader(_iterable_dataset(shard_uris.get(split, []), class_to_idx,
-                                            config.model.image_size, split == "train",
+        split: DataLoader(_iterable_dataset(shard_uris.get(split, []), class_to_idx, len(classes),
+                                            training_manifest.preprocessing, split == "train",
                                             config.horizontal_flip_probability),
                           batch_size=config.batch_size, num_workers=0,
                           pin_memory=device.type == "cuda")
@@ -192,6 +238,7 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
     output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
     model_dir = output / "model"
     model_dir.mkdir(parents=True, exist_ok=True)
+    write_manifest(model_dir / "semantics.json", training_manifest)
     checkpoint_path = model_dir / "model.pt"
     model_config = config.model.model_dump()
     # Bundle the backbone config and parameters with the checkpoint so inference
@@ -202,6 +249,8 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
         model_config["weights_uri"] = "backbone"
         from .weights import artifact_sha256
         model_config["weights_sha256"] = artifact_sha256(model_dir / "backbone")
+    else:
+        raise ValueError("portable model export requires a backbone with save_pretrained")
     (model_dir / "class_mapping.json").write_text(json.dumps({"classes": classes}, indent=2))
     (model_dir / "inference_config.json").write_text(json.dumps({
         "model": model_config, "confidence_threshold":
@@ -211,15 +260,21 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
     training_config = {"optimizer": config.optimizer, "loss": config.loss,
                        "focal_gamma": config.focal_gamma,
                        "horizontal_flip_probability": config.horizontal_flip_probability,
-                       "class_weights": config.class_weights}
+                       "class_weights": config.class_weights, "seed": config.seed,
+                       "max_review_error_rate": config.max_review_error_rate}
     torch.save({"state_dict": best_state, "classes": classes,
                 "model": model_config, "confidence_threshold":
                 threshold["confidence_threshold"] if threshold else 0.0,
-                "training_config": training_config, "best_epoch": best_epoch}, checkpoint_path)
+                "training_config": training_config, "best_epoch": best_epoch,
+                "experiment": config.model_dump(mode="json"),
+                "semantic_sha256": training_manifest.sha256}, checkpoint_path)
+    from .weights import write_bundle_integrity
+    write_bundle_integrity(model_dir)
     report = {"classes": classes, "best_epoch": best_epoch, "history": history,
               "validation": val_eval.__dict__, "test": test_eval.__dict__,
               "training_config": training_config,
               "abstention": threshold, "checkpoint": str(checkpoint_path),
+              "semantic_sha256": training_manifest.sha256,
               "device": str(device), "visible_gpu_count": visible_gpus}
     (output / "evaluation.json").write_text(json.dumps(report, indent=2))
     if mlflow_tracking_uri:
@@ -236,7 +291,11 @@ def train_experiment(config: ExperimentConfig, dataset_root: str | Path,
                      output_dir: str | Path, classes: list[str],
                      shard_uris: dict[str, list[str]] | None = None,
                      mlflow_tracking_uri: str | None = None,
-                     mlflow_run_id: str | None = None) -> dict[str, Any]:
+                     mlflow_run_id: str | None = None,
+                     semantic_manifest: SemanticManifest | None = None,
+                     dataset_sha256: str | None = None,
+                     runtime_image_digest: str | None = None,
+                     runtime_source_commit: str | None = None) -> dict[str, Any]:
     """Run a training job with traceable object, dataset and run log context."""
     from ..telemetry import bind_context, reset_context
     token = bind_context(run_id=mlflow_run_id or config.experiment_id,
@@ -244,7 +303,9 @@ def train_experiment(config: ExperimentConfig, dataset_root: str | Path,
                          dataset_version_id=config.dataset_version_id, step="trainer")
     try:
         return _train_experiment_impl(config, dataset_root, output_dir, classes,
-                                      shard_uris, mlflow_tracking_uri, mlflow_run_id)
+                                      shard_uris, semantic_manifest, dataset_sha256,
+                                      mlflow_tracking_uri, mlflow_run_id,
+                                      runtime_image_digest, runtime_source_commit)
     finally:
         reset_context(token)
 

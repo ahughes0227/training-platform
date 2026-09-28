@@ -4,17 +4,19 @@ Train a separate DINOv3 + MLP classifier for each type of inspected object. Each
 
 ## Testing status
 
-The local suite passes 55 tests, including actual DINOv3 training with generated weights. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The latest trainer compatibility fix still needs a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
+The local suite passes 115 tests, including actual DINOv3 training with generated weights and real local Ray HTTP inference. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
 
 ## Start here
 
-Read the [full system requirements](docs/REQUIREMENTS.md) for 150 requirements, their rationale and enforcement, and the positive and negative evidence needed for acceptance.
+Read the [full system requirements](docs/REQUIREMENTS.md) for 160 requirements, their rationale and enforcement, and the positive and negative evidence needed for acceptance.
+
+See the [semantic implementation plan](docs/SEMANTIC_IMPLEMENTATION_PLAN.md), [explicit module contracts](docs/MODULE_CONTRACTS.md), and [source-bound local evidence](docs/SEMANTIC_TEST_STATUS.md). Class meanings, IDs, dataset/model manifests and bundle hashes now travel across the modules; cloud submission requires a reviewed operator catalog and a current pinned infrastructure observation.
 
 See the [module-change risk assessment](docs/MODULE_CHANGE_RISKS.md) and [mitigation plan](docs/MODULE_RISK_MITIGATIONS.md) for risks, regression-detection scores, and conditional residual risk targets for separating datasets, training, and infrastructure.
 
 1. Read [the plain-language guide](docs/START_HERE.md).
 2. Copy `.env.example` and `templates/object/` to a new `projects/<object-name>/` folder, use `defect object init`, or start with `defect train guided` after cloud settings are configured.
-3. Connect a CSV manifest or BigQuery table containing image locations and labels. The CLI previews unresolved labels before a dataset is published.
+3. Define and approve class meanings with `defect object review-catalog OBJECT.yaml --reviewer YOUR_ID --approve` through the operator catalog store. Connect a CSV manifest or BigQuery table containing image locations and labels. The CLI previews unresolved labels before a dataset is published.
 4. Configure a GCP project, region, storage, MLflow, a certified trainer image digest, and a per-run cost cap. `defect train start` returns a run ID immediately; `defect run status RUN_ID` displays progress and locations.
 5. Review the candidate in MLflow. Promotion to Ray Serve requires an explicit command and approver identity.
 

@@ -19,16 +19,24 @@ def test_webdataset_train_checkpoint_reload_and_heatmap(tmp_path, monkeypatch):
     from PIL import Image
 
     from defect_platform.contracts import ExperimentConfig, ModelSpec
+    from defect_platform.semantics import SemanticManifest, legacy_catalog, read_manifest
     from defect_platform.trainer import inference, model, training
+
+    class TinyBackbone(torch.nn.Sequential):
+        def save_pretrained(self, path):
+            from pathlib import Path
+            Path(path).mkdir(parents=True, exist_ok=True)
+            (Path(path) / "fixture.json").write_text("{}")
 
     class TinyModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.backbone = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 16 * 16, 12))
+            self.backbone = TinyBackbone(torch.nn.Flatten(), torch.nn.Linear(3 * 16 * 16, 12))
             self.head = torch.nn.Sequential(torch.nn.Linear(12, 2))
 
         def forward_features(self, pixel_values):
             return self.backbone(pixel_values)
+
 
         def forward(self, pixel_values):
             return self.head(self.forward_features(pixel_values))
@@ -52,7 +60,9 @@ def test_webdataset_train_checkpoint_reload_and_heatmap(tmp_path, monkeypatch):
                                              image_size=16, hidden_dim=8),
         epochs=1, batch_size=4,
     )
-    report = training.train_experiment(config, tmp_path, tmp_path / "output", ["scratch", "dent"], shards)
+    semantics = SemanticManifest(kind="dataset", object_slug="fixture", catalog=legacy_catalog("fixture", ["scratch", "dent"]), dataset_version_id="v1")
+    report = training.train_experiment(config, tmp_path, tmp_path / "output", ["scratch", "dent"], shards,
+                                       semantic_manifest=semantics, dataset_sha256="b" * 64)
     model_dir = tmp_path / "output" / "model"
     bundle = inference.load_inference_bundle(model_dir)
     prediction = inference.predict_crop(bundle, Image.new("RGB", (24, 24), (255, 20, 20)), explain=True)
@@ -69,8 +79,10 @@ def test_webdataset_train_checkpoint_reload_and_heatmap(tmp_path, monkeypatch):
     from defect_platform.serve.api import PredictionService, PredictRequest
     request_image = Image.new("RGB", (24, 24), (255, 20, 20))
     encoded = io.BytesIO(); request_image.save(encoded, format="PNG")
+    model_semantics = read_manifest(model_dir / "semantics.json")
     service = PredictionService(lambda image, explain: inference.predict_crop(bundle, image, explain),
-                                "fixture-model", "1")
+                                "fixture-model", "1", catalog=model_semantics.catalog,
+                                semantic_sha256=bundle.semantic_sha256)
     response = service.predict(PredictRequest(image_base64=base64.b64encode(encoded.getvalue()).decode(),
                                               explain=True))
     assert response.class_name in {"scratch", "dent"}
@@ -82,10 +94,12 @@ def test_webdataset_train_checkpoint_reload_and_heatmap(tmp_path, monkeypatch):
         "horizontal_flip_probability": 0.0, "class_weights": {"scratch": 1.2, "dent": 0.8},
     })
     configured_report = training.train_experiment(
-        configured, tmp_path, tmp_path / "output-configured", ["scratch", "dent"], shards)
+        configured, tmp_path, tmp_path / "output-configured", ["scratch", "dent"], shards,
+        semantic_manifest=semantics, dataset_sha256="b" * 64)
     assert configured_report["training_config"]["optimizer"] == "sgd"
     assert configured_report["training_config"]["loss"] == "focal"
     assert configured_report["training_config"]["class_weights"] == {"scratch": 1.2, "dent": 0.8}
     invalid_weights = configured.model_copy(update={"class_weights": {"scratch": 1.0}})
-    with pytest.raises(ValueError, match="class_weights keys must exactly match"):
-        training.train_experiment(invalid_weights, tmp_path, tmp_path / "invalid", ["scratch", "dent"], shards)
+    with pytest.raises(ValueError, match="class weights must match the catalog labels"):
+        training.train_experiment(invalid_weights, tmp_path, tmp_path / "invalid", ["scratch", "dent"], shards,
+                                  semantic_manifest=semantics, dataset_sha256="b" * 64)

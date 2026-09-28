@@ -4,3 +4,22 @@ description: "{{ description }}"
 classes:
   - "{{ first_class }}"
   - "{{ second_class }}"
+class_catalog:
+  schema_version: 1
+  catalog_id: "{{ slug }}-defects"
+  object_slug: "{{ slug }}"
+  version: 1
+  review_status: draft
+  classes:
+    - class_id: class-1
+      label: "{{ first_class }}"
+      definition: ""
+      aliases: []
+      positive_examples: []
+      negative_examples: []
+    - class_id: class-2
+      label: "{{ second_class }}"
+      definition: ""
+      aliases: []
+      positive_examples: []
+      negative_examples: []

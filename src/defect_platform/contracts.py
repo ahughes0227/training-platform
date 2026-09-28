@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .semantics import ClassCatalog, PreprocessingSpec, catalog_for_object
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
@@ -33,11 +35,13 @@ class ObjectSpec(StrictModel):
     display_name: str
     description: str = ""
     classes: list[str] = Field(min_length=2)
+    class_catalog: ClassCatalog | None = None
 
     @model_validator(mode="after")
     def unique_classes(self) -> ObjectSpec:
         if len(set(self.classes)) != len(self.classes):
             raise ValueError("class names must be unique")
+        catalog_for_object(self)
         return self
 
 
@@ -91,6 +95,14 @@ class DatasetVersion(StrictModel):
     sample_counts: dict[str, int]
     sha256: str
     source_snapshot_uri: str
+    semantic_manifest_uri: str | None = None
+    semantic_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def semantic_reference_pair(self):
+        if (self.semantic_manifest_uri is None) != (self.semantic_sha256 is None):
+            raise ValueError("semantic manifest URI and checksum must be supplied together")
+        return self
 
 
 class ModelSpec(StrictModel):
@@ -101,6 +113,13 @@ class ModelSpec(StrictModel):
     hidden_dim: int = Field(default=256, gt=0)
     dropout: float = Field(default=0.2, ge=0, lt=1)
     unfreeze_last_n: int = Field(default=0, ge=0)
+    preprocessing: PreprocessingSpec | None = None
+
+    @model_validator(mode="after")
+    def preprocessing_shape(self):
+        if self.preprocessing and self.preprocessing.image_size != self.image_size:
+            raise ValueError("preprocessing image size must match model image size")
+        return self
 
 
 class ExperimentConfig(StrictModel):
@@ -119,6 +138,7 @@ class ExperimentConfig(StrictModel):
     class_weights: dict[str, float] = Field(default_factory=dict)
     seed: int = 42
     max_review_error_rate: float | None = Field(default=None, ge=0, lt=1)
+    catalog_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
     @model_validator(mode="after")
     def positive_class_weights(self) -> ExperimentConfig:
@@ -196,6 +216,10 @@ class RunRecord(StrictModel):
     failure_code: str | None = None
     failure_message: str | None = None
     logs_uri: str | None = None
+    catalog_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    dataset_semantic_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    runtime_image_digest: str | None = None
+    runtime_source_commit: str | None = Field(default=None, pattern=r"^[a-f0-9]{40}$")
 
 
 class ModelRelease(StrictModel):
@@ -206,10 +230,13 @@ class ModelRelease(StrictModel):
     run_id: str
     dataset_version_id: str
     runtime_id: str
-    serving_image_digest: str
+    serving_image_digest: str = Field(pattern=r"^[^\s]+@sha256:[a-f0-9]{64}$")
     state: Literal["staged", "promoted", "rolled_back"]
     approved_by: str | None = None
     approved_at: datetime | None = None
+    catalog_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    model_semantic_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    bundle_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class PlatformConfig(StrictModel):

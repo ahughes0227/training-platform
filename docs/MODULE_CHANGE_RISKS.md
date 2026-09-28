@@ -380,3 +380,7 @@ The module structure is worth adopting because it provides clear locations for t
 ## 9. Mitigation plans and residual risk targets
 
 The [mitigation plan](MODULE_RISK_MITIGATIONS.md) defines preventive controls, owners, positive and negative verification, remaining risk, and a conditional residual risk target for each of these 20 risks. Current risk and detection scores above remain unchanged until implementation and observed evidence justify reassessment.
+
+## Semantic implementation update — September 28, 2026
+
+The owner approved the MR-02 controls for implementation. See the [implementation plan](SEMANTIC_IMPLEMENTATION_PLAN.md), [explicit module contracts](MODULE_CONTRACTS.md), and [local evidence with live limits](SEMANTIC_TEST_STATUS.md). This is implementation evidence, not a new numerical risk estimate. Original risk/detection scores and conditional mitigation targets are preserved; deployed acceptance and residual-risk reassessment remain pending.

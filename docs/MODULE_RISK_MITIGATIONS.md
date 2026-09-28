@@ -2,7 +2,7 @@
 
 **Date:** September 28, 2026
 
-**Status:** Proposed mitigations and conditional target scores. No mitigation is claimed implemented or verified by this document.
+**Status:** Conditional mitigation targets retained. MR-02 now has implemented semantic controls and local evidence; complete live verification and residual-risk reassessment remain pending.
 
 **Repository reviewed:** `b45ca11e56a53a07897aca52b1d26ba038fde72c`
 
@@ -18,7 +18,7 @@ The original impact is retained for every risk. Mitigation reduces the estimated
 
 Detection is separate. A test that notices damage after a paid job or serving change has happened does not necessarily prevent that damage. This plan does **not** calculate residual risk by multiplying current risk by `1 − detection`.
 
-**Current scores have not fallen.** The structured register preserves them and sets `actual_residual_risk` to `null`. Every mitigation remains `planned_unimplemented_unverified`. [module-change-risks.json](requirements/module-change-risks.json) contains controls, owners, verification obligations, target factors, and remaining risk.
+**Current scores have not fallen.** The structured register preserves them and sets `actual_residual_risk` to `null`. MR-02 is `implemented_local_acceptance_pending_live_reassessment`; the remaining records retain their existing status. No conditional target is declared achieved. [module-change-risks.json](requirements/module-change-risks.json) contains controls, owners, verification obligations, target factors, and remaining risk.
 
 ## 2. Summary
 
@@ -47,7 +47,7 @@ Detection is separate. A test that notices damage after a paid job or serving ch
 
 ## 3. Mitigation and verification for each risk
 
-Positive checks establish that permitted work still succeeds. Negative checks establish that prohibited outcomes are prevented. All required checks below are planned. Negative evidence must include independent before/after state and zero forbidden effects; an exception or an empty log query alone is insufficient.
+Positive checks establish that permitted work still succeeds. Negative checks establish that prohibited outcomes are prevented. The procedures below remain required at their full declared scopes. MR-02 local implementation evidence is linked below; other forecast coverage is unchanged. Negative evidence must include independent before/after state and zero forbidden effects; an exception or an empty log query alone is insufficient.
 
 <a id="mr-01"></a>
 
@@ -80,6 +80,8 @@ Target likelihood 0.20 × retained impact 0.80.
 <a id="mr-02"></a>
 
 ### MR-02 — Silent changes to data or model meaning
+
+**Implementation update:** The owner-approved [semantic plan](SEMANTIC_IMPLEMENTATION_PLAN.md) has produced explicit [module contracts](MODULE_CONTRACTS.md), catalog authority, dataset/model manifests, preprocessing parity and adversarial checks. See [local evidence and live limits](SEMANTIC_TEST_STATUS.md). Risk 0.72, detection 0.45 and target 0.27 are retained as historical planning scores; `actual_residual_risk` remains null pending reassessment.
 
 **Owner:** Dataset, trainer, and serving owners; primary integration review.
 

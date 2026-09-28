@@ -27,6 +27,19 @@ variable "db_password" {
 }
 variable "dataset_bucket_name" { type = string }
 variable "artifact_bucket_name" { type = string }
+variable "class_catalog_bucket_name" { type = string }
+variable "catalog_operator_members" {
+  type    = list(string)
+  default = []
+}
+variable "infrastructure_capabilities_sha256" {
+  type    = string
+  default = ""
+  validation {
+    condition     = var.infrastructure_capabilities_sha256 == "" || can(regex("^[a-f0-9]{64}$", var.infrastructure_capabilities_sha256))
+    error_message = "Pin a 64-character lowercase SHA-256 after live infrastructure acceptance."
+  }
+}
 variable "litellm_model" { type = string }
 variable "cli_invoker_members" {
   type    = list(string)
