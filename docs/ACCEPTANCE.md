@@ -2,6 +2,8 @@
 
 This is the evidence checklist for the complete platform. Mark a row complete only after recording the command, configuration ID, artifact or job link, and observed result. Local successes do not certify a cloud deployment.
 
+**Current status: full live acceptance is incomplete.** See [the testing status](TEST_STATUS.md) for the distinction between local tests, observed GCP checks, and untested deployed services. The September 28 trainer fix has local regression evidence and has not been built into a new cloud image.
+
 | Gate | Required evidence |
 | --- | --- |
 | Dataset | CSV and BigQuery ingestion; reviewed label exceptions; immutable GCS version; WebDataset can read every expected sample; split and duplicate report |
@@ -163,3 +165,13 @@ This passes the GPU container smoke test and the Vertex GPU/GCS handshake for th
 The A100 preflight reserved USD 3 at a conservative USD 6/hour ceiling for the 30-minute total watchdog bound. Its observed create-to-end interval implies about USD 0.63 at that same ceiling. Together with prior build and conservatively estimated T4 time, estimated compute remains below USD 2; actual charges were not available and disk, network, logs, and storage are additional. Spot charges may be lower. This is an estimate under the authorized USD 5 test limit, not a measured billing result. [Vertex training pricing](https://cloud.google.com/products/gemini-enterprise-agent-platform/pricing).
 
 All three test jobs are terminal. The retained image is 6,660,661,984 bytes (about 6.2 GiB), with storage estimated at approximately USD 0.62/month before any available allowance. Permanent removal requires the user's cleanup choice; the current image is retained pending that answer. [Artifact Registry pricing](https://cloud.google.com/artifact-registry/pricing).
+
+## Training-code audit and regression fix, 2026-09-28
+
+The existing 51 tests passed again with no skips. Inspection showed the end-to-end trainer test substituted a tiny generic model for the DINOv3 factory. Four new integration tests now exercise the installed Transformers `5.17.0` DINOv3 implementation using a small, locally generated checkpoint, offline, without downloaded pretrained weights.
+
+The new selected-layer test first failed with `ValueError: backbone implementation did not expose transformer layers` when `unfreeze_last_n=1`. The installed `DINOv3ViTModel` exposes its encoder at `model.layer`; the trainer factory only looked for other layouts. This is a **Trainer Engineer** failure. The owning-layer fix adds the observed encoder layout to the factory; no container, dependency, infrastructure, or experiment-submission settings changed.
+
+After the fix, `.venv/bin/python -m pytest -q tests/test_dinov3_integration.py` passed all four tests. They verify exclusion of CLS/register tokens from patch pooling, gradients only on selected layers, rejection of excessive unfreezing, actual DINOv3 WebDataset training, export/reload after deleting the original weight directory, evaluation, and heatmap inference. `.venv/bin/python -m pytest -q -ra` then passed **55 tests, no skips**, with two dependency deprecation warnings. Python compilation passed and ten infrastructure/template YAML files parsed. OpenTofu provider validation remains unperformed.
+
+Runtime Engineer handoff: the previously published digest contains source commit `cbf9dd19ba09df5a1c4236f620e83d20f73d7a94`, which predates this fix. Its successful A100 smoke result remains evidence for that digest only. A release containing the fix needs a new immutable image, followed by a GPU test that exercises actual DINOv3 training and the corrected selected-layer path. Repeating only the generic synthetic MLP probe would not verify the fix. No rebuild or new paid job was started during this audit, and no certification was issued.

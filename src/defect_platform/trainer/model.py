@@ -49,6 +49,9 @@ def build_model(num_classes: int, hidden_dim: int = 256, dropout: float = 0.2,
     backbone_model = AutoModel.from_pretrained(source, trust_remote_code=False)
     layers = getattr(getattr(backbone_model, "encoder", None), "layer", None)
     if layers is None:
+        # Transformers 5 DINOv3 exposes its encoder as model.layer.
+        layers = getattr(getattr(backbone_model, "model", None), "layer", None)
+    if layers is None:
         layers = getattr(getattr(backbone_model, "layers", None), "layers", None)
     if unfreeze_last_n < 0 or (layers is not None and unfreeze_last_n > len(layers)):
         raise ValueError("unfreeze_last_n exceeds backbone transformer depth")
