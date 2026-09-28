@@ -2,6 +2,10 @@
 
 Train a separate DINOv3 + MLP classifier for each type of inspected object. Each input is a crop of a defect that has already been found. The model names its defect class, reports confidence, and flags uncertain cases for review. It does not decide product disposition.
 
+## Testing status
+
+The local suite passes 55 tests, including actual DINOv3 training with generated weights. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The latest trainer compatibility fix still needs a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
+
 ## Start here
 
 1. Read [the plain-language guide](docs/START_HERE.md).
