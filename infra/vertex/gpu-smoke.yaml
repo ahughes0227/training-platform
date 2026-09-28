@@ -12,12 +12,12 @@ workerPoolSpecs:
       bootDiskSizeGb: 100
     containerSpec:
       imageUri: CHANGE_ME@sha256:CHANGE_ME
-      command: [/bin/bash, -lc]
+      command: [/bin/bash, -c]
       args:
         - >-
           set -euo pipefail;
-          timeout 120s python -m defect_platform.trainer.validate --require-gpu;
-          timeout 120s python -m defect_platform.trainer.runtime_probe
+          timeout 120s /opt/venv/bin/python -m defect_platform.trainer.validate --require-gpu;
+          timeout 120s /opt/venv/bin/python -m defect_platform.trainer.runtime_probe
       env:
         - name: DEFECT_PLATFORM_RUN_ID
           value: CHANGE_ME

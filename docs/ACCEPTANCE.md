@@ -104,3 +104,34 @@ The validation uses the synthetic backbone and proves container startup, an opti
 At the published default `e2-standard-2` rate of USD 0.006/minute, the observed duration implies approximately USD 0.0358 for build compute before free-tier credits. The full 20-minute cap would have bounded build compute to USD 0.12. Storage, logs, and network are additional; these are estimates, not measured billing charges. The dashboard still displayed estimated USD 0.00, which can lag usage. [Cloud Build pricing](https://cloud.google.com/build/pricing).
 
 Logs remain in the linked build record. Downloading a local raw-log copy timed out, so no downloaded-log checksum is claimed. The temporary source object was staged at `gs://prefab-winter-256318_cloudbuild/source/1790552530.0085-6e2042d5470c45fdbc2e972459644cb0.tgz`; its bucket has a seven-day (`604800s`) soft-delete policy. `gcloud storage rm` reported `Completed 1/1`, and the subsequent live bucket listing was empty. The source can remain recoverable until soft-delete expiry; the empty staging bucket and build logs are retained. No registry image, GPU job, or serving deployment was created.
+
+## GCP GPU container test, 2026-09-27 — in progress
+
+The user requested a real GPU test under the existing USD 5 total test limit. Vertex AI was enabled. Live Service Usage quotas report one preemptible T4 training GPU in `us-central1`; regular T4 training quota is zero. This test therefore uses Spot capacity.
+
+| Evidence | Observed value |
+| --- | --- |
+| Trainer source commit | `cbf9dd19ba09df5a1c4236f620e83d20f73d7a94` |
+| Configuration template commit | `203031cb46734f691e55353350984a78004b86dd` |
+| Build / publish configuration | `infra/cloudbuild/trainer-candidate.yaml`, `1200s` timeout |
+| Build | [ea99c24f-6583-4486-b661-439437f1688f](https://console.cloud.google.com/cloud-build/builds;region=us-central1/ea99c24f-6583-4486-b661-439437f1688f?project=prefab-winter-256318), `SUCCESS` |
+| Build start / finish UTC | `2026-09-28T00:07:00.588706912Z` / `2026-09-28T00:21:58.402599Z` |
+| Image | `us-central1-docker.pkg.dev/prefab-winter-256318/defect-gpu-smoke-20260927/trainer@sha256:54b8a0ffd2a8bb0cb444c6f61069f33c7fca4ce98ce88abd734eba0855c17c27` |
+| Registry | Private Docker repository `defect-gpu-smoke-20260927`, immutable tags, `us-central1` |
+| Run ID | `defect-gpu-smoke-20260927-cbf9dd1` |
+| First Vertex job | [910496104263450624](https://console.cloud.google.com/agent-platform/locations/us-central1/training/910496104263450624?project=prefab-winter-256318), `CANCELLED` |
+| Accepted resources | One `n1-standard-4` worker, one `NVIDIA_TESLA_T4`, 100 GB Standard boot disk |
+| Accepted scheduling | `SPOT`, `timeout: 900s`, `disableRetries: true` |
+| Watchdog | Cloud Shell process polls independently of the agent; cancels after 1200 seconds without observing RUNNING, or after 2100 seconds total |
+| Service account | Existing `1068261906070-compute@developer.gserviceaccount.com`; no IAM grants made for this test |
+| Intended result | `gs://prefab-winter-256318_cloudbuild/gpu-smoke/defect-gpu-smoke-20260927-cbf9dd1/result.json` |
+
+The GPU job runs `defect_platform.trainer.validate --require-gpu` followed by `defect_platform.trainer.runtime_probe`, each with a 120-second process limit. The first check exercises three synthetic MLP optimizer steps and checkpoint save/reload on CUDA. The second performs CUDA tensor arithmetic and a checked GCS write/read. It does not load pretrained DINOv3 weights. No runtime certification record has been issued.
+
+As of `2026-09-28T00:32:10Z`, the job was PENDING with a start time and repeated Vertex framework-provisioning messages. No application CUDA result had been observed. Submission and a published image do not constitute a passed GPU test.
+
+The watchdog subsequently requested cancellation after the 20-minute provisioning deadline. A fresh Vertex response confirmed `JOB_STATE_CANCELLED`, error code `1` / `CANCELED`, start time `2026-09-28T00:25:18.083987Z`, and end time `2026-09-28T00:43:03.561530Z`. The runtime probes never produced a CUDA result; this is a provisioning failure, not evidence of a trainer or CUDA failure. A project-wide permission-denial log query for this interval returned no entries, which does not rule out other infrastructure causes.
+
+A second bounded test was submitted only after the first job was confirmed stopped: [8873171192496783360 in us-east1](https://console.cloud.google.com/agent-platform/locations/us-east1/training/8873171192496783360?project=prefab-winter-256318), run ID `defect-gpu-smoke-20260927-cbf9dd1-east1`. Live quota also reports one preemptible T4 training GPU in this region. It reuses the exact image digest above and retains one worker, one T4, the 900-second runtime limit, disabled retries, and the independent watchdog. Its result target is `gs://prefab-winter-256318_cloudbuild/gpu-smoke/defect-gpu-smoke-20260927-cbf9dd1-east1/result.json`. The configuration uses `/bin/bash -c` and `/opt/venv/bin/python` explicitly so a login shell cannot select a different Python installation. No image or trainer source changes were made for this retry. The second test is still in progress.
+
+The build duration implies approximately USD 0.0898 in default build compute before credits at USD 0.006/minute. GPU, disk, logs, and storage are additional; measured charges remain unavailable. [Cloud Build pricing](https://cloud.google.com/build/pricing). Temporary source object `gs://prefab-winter-256318_cloudbuild/source/1790554017.981139-39ae10bf92344b869501aecaf04b0d4e.tgz` was removed with `Completed 1/1` under the bucket's seven-day soft-delete policy. The registry image and logs remain available.
