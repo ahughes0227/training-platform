@@ -1,0 +1,37 @@
+# Runtime test only. Resolve all CHANGE_ME values before submission.
+# Reject mutable tags; imageUri must be the exact pushed candidate digest.
+# Use a fresh probe/result prefix for every attempt.
+workerPoolSpecs:
+  - machineSpec:
+      machineType: n1-standard-4
+      acceleratorType: NVIDIA_TESLA_T4
+      acceleratorCount: 1
+    replicaCount: 1
+    diskSpec:
+      bootDiskType: pd-standard
+      bootDiskSizeGb: 100
+    containerSpec:
+      imageUri: CHANGE_ME@sha256:CHANGE_ME
+      command: [/bin/bash, -lc]
+      args:
+        - >-
+          set -euo pipefail;
+          timeout 120s python -m defect_platform.trainer.validate --require-gpu;
+          timeout 120s python -m defect_platform.trainer.runtime_probe
+      env:
+        - name: DEFECT_PLATFORM_RUN_ID
+          value: CHANGE_ME
+        - name: DEFECT_PLATFORM_IMAGE_DIGEST
+          value: sha256:CHANGE_ME
+        - name: DEFECT_PLATFORM_GCS_PROBE_URI
+          value: gs://CHANGE_ME/gpu-smoke/CHANGE_ME/probe
+        - name: DEFECT_PLATFORM_GCS_RESULT_URI
+          value: gs://CHANGE_ME/gpu-smoke/CHANGE_ME/result.json
+serviceAccount: CHANGE_ME
+scheduling:
+  strategy: SPOT
+  timeout: 900s
+  restartJobOnWorkerRestart: false
+  disableRetries: true
+enableWebAccess: false
+enableDashboardAccess: false

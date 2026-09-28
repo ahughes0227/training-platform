@@ -28,6 +28,14 @@ gcloud builds submit . \
 
 The Cloud Build API must be enabled. Check the billing account and the current [Cloud Build pricing](https://cloud.google.com/build/pricing) before submission; the build timeout bounds build minutes but does not cap ancillary charges. Record the build ID, log URL, source commit, exact base digest, observed validation JSON, and actual billed cost in `docs/ACCEPTANCE.md`.
 
+### Small real GPU container test on Vertex
+
+Use `infra/cloudbuild/trainer-candidate.yaml` for the separate Runtime Engineer build/publish operation. Provide `_TRAINING_BASE_IMAGE` as a verified base digest and `_IMAGE_URI` as a private Artifact Registry candidate tag. It has a 20-minute timeout and performs a CPU packaging check before pushing the candidate. Resolve the resulting registry digest; never launch the GPU test with the tag.
+
+Fill `infra/vertex/gpu-smoke.yaml` with that digest, an existing authorized service account, a unique run ID, and private GCS probe/result paths. Submit it with `gcloud ai custom-jobs create --project=PROJECT --region=REGION --display-name=RUN_ID --config=RESOLVED_CONFIG`. The configuration requests exactly one T4 on one `n1-standard-4` Spot worker, a 15-minute job timeout, disabled retries, and 120-second limits on each probe. GPU quota and actual Spot capacity are separate requirements. Verify the accepted job's scheduling settings, and cancel it if it remains queued beyond the test's approved waiting period.
+
+The job forces GPU optimizer/checkpoint validation with `--require-gpu`, then runs the GPU arithmetic and GCS read/write handshake. A CPU fallback is a failure. Inspect both validation output and the handshake result, retaining the exact digest, source commit, GPU name/count, Python/PyTorch/CUDA versions, job status, logs, and budget estimate in `docs/ACCEPTANCE.md`. This test does not download DINOv3 weights or issue a full certification record. Ordinary experiments continue to use existing certified digests without calling either build configuration.
+
 ## Experiments and releases
 
 The controller first stores an idempotent run and checks its cost cap. Workflows submits the Vertex CustomJob and monitors it independently of the CLI or agent. The trainer writes evaluation and model artifacts under the configured run root and logs to MLflow. Terminal state is recorded even if the user has closed the CLI.

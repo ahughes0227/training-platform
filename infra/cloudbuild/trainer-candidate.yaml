@@ -1,0 +1,32 @@
+# Runtime Engineer operation: publish a candidate for GPU testing, not an experiment.
+# The candidate is not certified by this CPU build. Supply a pinned base digest
+# and a private Artifact Registry tag via substitutions. Resolve the pushed digest
+# before launching infra/vertex/gpu-smoke.yaml.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    id: build-trainer
+    args:
+      - build
+      - --file
+      - infra/docker/trainer.Dockerfile
+      - --build-arg
+      - TRAINING_BASE_IMAGE=${_TRAINING_BASE_IMAGE}
+      - --tag
+      - ${_IMAGE_URI}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    id: validate-packaging
+    args:
+      - run
+      - --rm
+      - --entrypoint
+      - python
+      - ${_IMAGE_URI}
+      - -m
+      - defect_platform.trainer.validate
+images:
+  - ${_IMAGE_URI}
+timeout: 1200s
+substitutions:
+  _TRAINING_BASE_IMAGE: UNSET
+  _IMAGE_URI: UNSET
