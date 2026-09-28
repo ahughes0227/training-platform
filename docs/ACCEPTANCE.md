@@ -105,7 +105,7 @@ At the published default `e2-standard-2` rate of USD 0.006/minute, the observed 
 
 Logs remain in the linked build record. Downloading a local raw-log copy timed out, so no downloaded-log checksum is claimed. The temporary source object was staged at `gs://prefab-winter-256318_cloudbuild/source/1790552530.0085-6e2042d5470c45fdbc2e972459644cb0.tgz`; its bucket has a seven-day (`604800s`) soft-delete policy. `gcloud storage rm` reported `Completed 1/1`, and the subsequent live bucket listing was empty. The source can remain recoverable until soft-delete expiry; the empty staging bucket and build logs are retained. No registry image, GPU job, or serving deployment was created.
 
-## GCP GPU container test, 2026-09-27 — in progress
+## GCP GPU container test, 2026-09-27 — passed on A100
 
 The user requested a real GPU test under the existing USD 5 total test limit. Vertex AI was enabled. Live Service Usage quotas report one preemptible T4 training GPU in `us-central1`; regular T4 training quota is zero. This test therefore uses Spot capacity.
 
@@ -132,6 +132,34 @@ As of `2026-09-28T00:32:10Z`, the job was PENDING with a start time and repeated
 
 The watchdog subsequently requested cancellation after the 20-minute provisioning deadline. A fresh Vertex response confirmed `JOB_STATE_CANCELLED`, error code `1` / `CANCELED`, start time `2026-09-28T00:25:18.083987Z`, and end time `2026-09-28T00:43:03.561530Z`. The runtime probes never produced a CUDA result; this is a provisioning failure, not evidence of a trainer or CUDA failure. A project-wide permission-denial log query for this interval returned no entries, which does not rule out other infrastructure causes.
 
-A second bounded test was submitted only after the first job was confirmed stopped: [8873171192496783360 in us-east1](https://console.cloud.google.com/agent-platform/locations/us-east1/training/8873171192496783360?project=prefab-winter-256318), run ID `defect-gpu-smoke-20260927-cbf9dd1-east1`. Live quota also reports one preemptible T4 training GPU in this region. It reuses the exact image digest above and retains one worker, one T4, the 900-second runtime limit, disabled retries, and the independent watchdog. Its result target is `gs://prefab-winter-256318_cloudbuild/gpu-smoke/defect-gpu-smoke-20260927-cbf9dd1-east1/result.json`. The configuration uses `/bin/bash -c` and `/opt/venv/bin/python` explicitly so a login shell cannot select a different Python installation. No image or trainer source changes were made for this retry. The second test is still in progress.
+A second bounded test was submitted only after the first job was confirmed stopped: [8873171192496783360 in us-east1](https://console.cloud.google.com/agent-platform/locations/us-east1/training/8873171192496783360?project=prefab-winter-256318), run ID `defect-gpu-smoke-20260927-cbf9dd1-east1`. Live quota also reports one preemptible T4 training GPU in this region. It reused the exact image digest above and retained one worker, one T4, the 900-second runtime limit, disabled retries, and the independent watchdog. Its result target was `gs://prefab-winter-256318_cloudbuild/gpu-smoke/defect-gpu-smoke-20260927-cbf9dd1-east1/result.json`. The configuration uses `/bin/bash -c` and `/opt/venv/bin/python` explicitly so a login shell cannot select a different Python installation. No image or trainer source changes were made for this retry. A fresh Vertex response confirmed `JOB_STATE_CANCELLED`, error code `1` / `CANCELED`, start `2026-09-28T00:47:56.241795Z`, and end `2026-09-28T01:04:56.734142Z`. Its logs reached job preparation without an application CUDA result before the provisioning deadline.
 
 The build duration implies approximately USD 0.0898 in default build compute before credits at USD 0.006/minute. GPU, disk, logs, and storage are additional; measured charges remain unavailable. [Cloud Build pricing](https://cloud.google.com/build/pricing). Temporary source object `gs://prefab-winter-256318_cloudbuild/source/1790554017.981139-39ae10bf92344b869501aecaf04b0d4e.tgz` was removed with `Completed 1/1` under the bucket's seven-day soft-delete policy. The registry image and logs remain available.
+
+### Successful A100 GPU execution
+
+During the second attempt, inspection found Compute Engine API disabled; it was enabled successfully. The existing Vertex service identity already had `roles/aiplatform.serviceAgent`; no manual IAM grants were made. Job preparation progressed after API enablement, but this timing does not prove the cause of the T4 delays. Live Vertex quota reported eight preemptible A100 training GPUs in `us-central1`. Compute Engine's separate global `GPUS_ALL_REGIONS` quota was zero, so a direct GPU VM was unavailable as a fallback.
+
+The third attempt began after fresh responses confirmed both earlier jobs stopped. It reused the exact published container without any rebuild or dependency changes. Its resolved configuration changed the worker to one `a2-highgpu-1g` with one `NVIDIA_TESLA_A100` and reduced the runtime timeout to `600s`; Spot scheduling and disabled retries remained. The independent controller allowed 1200 seconds before RUNNING and 1800 seconds total.
+
+| Evidence | Observed value |
+| --- | --- |
+| Vertex job | [5919343314829574144](https://console.cloud.google.com/agent-platform/locations/us-central1/training/5919343314829574144?project=prefab-winter-256318) |
+| Run ID / region | `defect-gpu-smoke-20260927-cbf9dd1-a100` / `us-central1` |
+| Final response | `JOB_STATE_SUCCEEDED`, no error; Console showed Finished |
+| Create / start / end UTC | `2026-09-28T01:06:47.438205Z` / `2026-09-28T01:12:05Z` / `2026-09-28T01:13:06Z` |
+| Reported running duration | 61 seconds; create-to-end duration about 6 minutes 19 seconds |
+| GPU observed inside container | One `NVIDIA A100-SXM4-40GB` |
+| Runtime observed | Python `3.13.15`, PyTorch `2.14.0+cu130`, CUDA `13.0` |
+| Optimizer / checkpoint check | `success: true`, `device: cuda`, `gpu_required: true`, loss `0.6725755333900452` |
+| GPU arithmetic | `gpu_tensor_operation: true` |
+| GCS check | `gcs_read: true`, `gcs_write: true`, SHA-256 `5d0249907a233e82d2a76286038c2d2735d571cb168ccafb91719527b735ec26` |
+| Stored result | `gs://prefab-winter-256318_cloudbuild/gpu-smoke/defect-gpu-smoke-20260927-cbf9dd1-a100/result.json`, read back successfully with `gcloud storage cat` |
+
+[Readable evidence and result documents](evidence/2026-09-27-gpu-container/README.md) retain the observed output, commands, and cloud locations. Cloud Logging contains the CUDA validation at `2026-09-28T01:11:57Z` and handshake result at `2026-09-28T01:12:07.884104865Z`. The runtime probe's structured log stages also appeared in Cloud Logging; delivery to Loki remains untested.
+
+This passes the GPU container smoke test and the Vertex GPU/GCS handshake for the exact digest on A100. It does not establish T4 compatibility or load pretrained DINOv3 weights. The saved checkpoint was temporary inside the job. No full `CertifiedRuntime` record was issued by the ordered certification CLI. Full platform acceptance, including real DINOv3 training, MLflow registration, serving, promotion, and rollback, remains open.
+
+The A100 preflight reserved USD 3 at a conservative USD 6/hour ceiling for the 30-minute total watchdog bound. Its observed create-to-end interval implies about USD 0.63 at that same ceiling. Together with prior build and conservatively estimated T4 time, estimated compute remains below USD 2; actual charges were not available and disk, network, logs, and storage are additional. Spot charges may be lower. This is an estimate under the authorized USD 5 test limit, not a measured billing result. [Vertex training pricing](https://cloud.google.com/products/gemini-enterprise-agent-platform/pricing).
+
+All three test jobs are terminal. The retained image is 6,660,661,984 bytes (about 6.2 GiB), with storage estimated at approximately USD 0.62/month before any available allowance. Permanent removal requires the user's cleanup choice; the current image is retained pending that answer. [Artifact Registry pricing](https://cloud.google.com/artifact-registry/pricing).

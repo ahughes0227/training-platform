@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "device": "cuda",
+  "loss": 0.6725755333900452,
+  "checkpoint": "/tmp/defect-trainer-check-3kdfdfrt/synthetic-validation.pt",
+  "cuda_name": "NVIDIA A100-SXM4-40GB",
+  "gpu_required": true
+}
