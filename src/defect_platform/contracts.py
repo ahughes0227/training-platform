@@ -67,11 +67,20 @@ class LabelReviewEvidence(StrictModel):
     preview_before_review: list[dict[str, str | int | None]]
 
 
+class CleanlabSpec(StrictModel):
+    """External out-of-sample probabilities used for dataset quality checks."""
+
+    predictions_uri: str
+    key_field: Literal["image_uri", "sample_id"] = "image_uri"
+    max_issue_fraction: float = Field(default=0.0, ge=0, le=1)
+
+
 class DatasetSpec(StrictModel):
     object_slug: str
     sources: list[LabelSource] = Field(min_length=1)
     label_mapping: dict[str, str] = Field(default_factory=dict)
     label_review: LabelReviewEvidence | None = None
+    cleanlab: CleanlabSpec | None = None
     split: SplitSpec = Field(default_factory=SplitSpec)
     output_uri: str  # gs://bucket/prefix
     shard_max_samples: int = Field(default=1000, gt=0)

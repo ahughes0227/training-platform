@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "document_version": "1.1",
-  "title": "Defect Training Platform \u2014 Full System Requirements",
-  "date": "2026-09-28",
+  "document_version": "1.2",
+  "title": "Defect Training Platform — Full System Requirements",
+  "date": "2026-09-29",
   "status": "requirements_baseline_full_acceptance_incomplete",
   "implementation_baseline": "dbc04a3c4ff260f966f7fc886efa8fc77d3a4b15",
   "authority": "Canonical requirement records; generated Markdown is a readable view. Owner review is required for scope or authority changes.",
@@ -11,72 +11,77 @@
     {
       "key": "mission",
       "title": "Mission, scope, and authority",
-      "range": "TP-001\u2013TP-006"
+      "range": "TP-001–TP-006"
     },
     {
       "key": "setup",
       "title": "Guided setup and human review",
-      "range": "TP-007\u2013TP-015"
+      "range": "TP-007–TP-015"
     },
     {
       "key": "configuration",
       "title": "Configuration, templates, and project navigation",
-      "range": "TP-016\u2013TP-024"
+      "range": "TP-016–TP-024"
     },
     {
       "key": "sources",
       "title": "Source acquisition and label authority",
-      "range": "TP-025\u2013TP-036"
+      "range": "TP-025–TP-036"
     },
     {
       "key": "datasets",
       "title": "Immutable WebDataset versions and leakage prevention",
-      "range": "TP-037\u2013TP-048"
+      "range": "TP-037–TP-048"
     },
     {
       "key": "training",
       "title": "DINOv3 training, evaluation, and inference artifacts",
-      "range": "TP-049\u2013TP-064"
+      "range": "TP-049–TP-064"
     },
     {
       "key": "runtime",
       "title": "Runtime packaging and exact-digest certification",
-      "range": "TP-065\u2013TP-077"
+      "range": "TP-065–TP-077"
     },
     {
       "key": "execution",
       "title": "Admission, budgets, and durable execution",
-      "range": "TP-078\u2013TP-094"
+      "range": "TP-078–TP-094"
     },
     {
       "key": "mlflow",
       "title": "MLflow experiment and model governance",
-      "range": "TP-095\u2013TP-102"
+      "range": "TP-095–TP-102"
     },
     {
       "key": "serving",
       "title": "Human-approved releases and Ray Serve",
-      "range": "TP-103\u2013TP-116"
+      "range": "TP-103–TP-116"
     },
     {
       "key": "observability",
       "title": "Telemetry, diagnostics, and failure ownership",
-      "range": "TP-117\u2013TP-125"
+      "range": "TP-117–TP-125"
     },
     {
       "key": "security",
       "title": "Coding-agent roles and enforced authority",
-      "range": "TP-126\u2013TP-139"
+      "range": "TP-126–TP-139"
     },
     {
       "key": "operations",
       "title": "Deployment, recovery, and full acceptance",
-      "range": "TP-140\u2013TP-150"
+      "range": "TP-140–TP-150"
     },
     {
       "key": "semantics",
       "title": "Semantic module contracts and reviewed meaning",
-      "range": "TP-151\u2013TP-160"
+      "range": "TP-151–TP-160"
+    },
+    {
+      "key": "vm_queue",
+      "title": "Compute Engine unattended training queue",
+      "range": "TP-161–TP-195"
     }
   ],
   "evidence_catalog": [
@@ -414,6 +419,99 @@
       ],
       "observed": "Combined local acceptance: 115 passed, zero failures/skips, 64.11 seconds, 19 dependency warnings; actual CSV/image WebDataset creation, DINOv3 fixture training, portable reload, heatmaps and real Ray HTTP. Exact code/config/test hashes and package versions are recorded.",
       "limits": "Generated weights/fixture images cannot establish real defect truth or pretrained quality. Capability records rely on protected operator authority; live GPU/MLflow/GKE/Loki/IAM gates remain incomplete."
+    },
+    {
+      "id": "E-VMQUEUE",
+      "title": "Compute Engine training queue implementation and pending acceptance",
+      "scope": "local_queue_implementation_and_live_vm_acceptance_pending",
+      "paths": [
+        "docs/TRAINING_QUEUE_PLAN.md",
+        "docs/VM_TRAINING_QUEUE.md",
+        "src/defect_platform/control/queue_contracts.py",
+        "src/defect_platform/control/queue_store.py",
+        "src/defect_platform/control/queue_admission.py",
+        "src/defect_platform/control/queue_controller.py",
+        "src/defect_platform/control/queue_worker.py",
+        "src/defect_platform/control/vm_executor.py",
+        "src/defect_platform/control/vm_queue_api.py",
+        "src/defect_platform/control/vm_queue_client.py",
+        "src/defect_platform/control/vm_queue_commands.py",
+        "tests/test_control_queue_store.py",
+        "tests/test_control_queue_worker.py",
+        "tests/test_control_vm_executor.py",
+        "tests/test_control_queue_integration.py",
+        "tests/test_control_vm_queue_api.py",
+        "tests/test_control_vm_queue_cli.py",
+        "docs/TRAINING_QUEUE_IMPLEMENTATION.md",
+        "docs/evidence/training-queue-local-2026-09-29.json",
+        "infra/systemd/README.md",
+        "infra/systemd/defect-queue-api.service",
+        "infra/systemd/defect-queue-worker.service",
+        "infra/systemd/queue-config.example.yaml"
+      ],
+      "tests": [
+        "test_controller_rejects_self_asserted_authority_before_persisting",
+        "test_controller_rechecks_revocation_and_boot_identity",
+        "test_controller_atomic_idempotent_batch_controls_and_cost_cursor",
+        "test_untrusted_prices_and_catalog_order_cannot_shrink_reservations",
+        "test_profile_cost_bound_and_nonfinite_campaign_rejected",
+        "test_cli_exposes_queue_under_existing_training_commands",
+        "test_lost_tracking_create_response_cannot_create_duplicate_run",
+        "test_complete_output_gate_rejects_partial_and_tampered_attempts",
+        "test_off_vm_backup_contains_recovery_state_without_credentials",
+        "test_administrator_recovery_requires_empty_observed_gpu_and_same_instance",
+        "test_cancel_does_not_release_slot_until_actual_termination",
+        "test_cancel_created_container_never_replays_start_or_invents_exit",
+        "test_worker_failure_policy_reconciles_tracking_before_continuing",
+        "test_finite_batch_is_fifo_idempotent_and_atomic",
+        "test_old_pinned_capacity_sample_does_not_block_restart_or_fresh_enqueue",
+        "test_claim_persists_dispatch_identity_and_never_replays_expired_unknown",
+        "test_retry_requires_confirmed_failure_and_honors_remaining_budget_and_backoff",
+        "test_start_deadline_is_anchored_to_first_persisted_start_intent",
+        "test_verified_interruption_has_no_invented_exit_and_requires_explicit_retry",
+        "test_configured_continue_marks_failure_resolved_and_advances_fifo",
+        "test_continue_waits_for_tracking_finalization_before_advancing",
+        "test_concurrent_workers_can_atomically_claim_only_one_fifo_head",
+        "test_waiting_cancel_races_claim_without_creating_cancelled_attempt",
+        "test_rejects_unknown_persisted_schema_version",
+        "test_pause_cas_capacity_freshness_and_durable_backup",
+        "test_uptime_exposure_is_durable_idempotent_and_pauses_after_recording_liability",
+        "test_worker_holds_before_claim_when_unbound_gpu_workload_exists",
+        "test_worker_holds_if_gpu_observer_is_unavailable",
+        "test_worker_fences_changed_boot_before_reading_queue",
+        "test_worker_runs_persisted_create_start_terminal_finalize_lifecycle",
+        "test_create_uses_full_registry_digest_and_argv_without_shell",
+        "test_uncertain_create_reconciles_deterministic_container_without_retry",
+        "test_container_spec_rejects_root_or_non_numeric_identity",
+        "test_container_spec_rejects_arbitrary_command",
+        "test_container_spec_requires_named_isolated_network",
+        "test_disk_admission_fails_closed_for_insufficient_peak_space",
+        "test_vm_boot_identity_mismatch_fences_side_effects",
+        "test_cancel_keeps_unknown_slot_held_until_exit_is_observed",
+        "test_cancel_created_container_removes_exact_instance_without_start",
+        "test_start_does_not_issue_engine_start_for_unknown_container",
+        "test_wrong_local_repo_digest_never_creates_container",
+        "test_readiness_compares_selected_gpu_driver_engine_toolkit_and_digest",
+        "test_readiness_fails_closed_when_gpu_driver_changes",
+        "test_peer_role_controls_actions_and_body_actor_is_ignored",
+        "test_worker_observations_cannot_call_operator_actions",
+        "test_backup_and_restore_check_paths_are_explicit_and_absolute",
+        "test_retry_requires_operator_reason_and_revision",
+        "test_server_protocol_handles_bounded_socketpair_request",
+        "test_unix_service_rejects_untrusted_peer_without_controller_effect",
+        "test_server_refuses_to_unlink_non_socket",
+        "test_prepared_yaml_loads_typed_requests_and_batch_key_is_stable",
+        "test_prepared_yaml_rejects_duplicate_keys_and_non_request_shape",
+        "test_cli_requires_finite_local_yaml_input",
+        "test_service_role_map_uses_configured_uid_and_rejects_ambiguous_roles",
+        "test_worker_loop_ticks_and_stops_with_interruptible_event",
+        "test_serve_command_uses_controller_config_and_uid_authority",
+        "test_worker_command_uses_explicit_service_tick_interval",
+        "test_interrupted_recovery_requires_admin_and_calls_controller_factory",
+        "test_interrupted_recovery_rejects_non_admin_without_factory_effect"
+      ],
+      "observed": "Final local source suite: 177 passed, including 63 queue cases; separate earlier Ray integration: one passed. Ruff and tracked diff whitespace checks passed. Queue fixtures cover transactional FIFO/CAS/idempotency, durable reservations and uptime liability, engine/create/start uncertainty, role separation, protected approvals, output/tracking gates, simulated recovery archives, active/unstarted cancellation, classified bounded retries, and both failure policies. See the implementation matrix and source-hash receipt for precise scope.",
+      "limits": "All queue checks are local fixtures. No Linux SO_PEERCRED/filesystem ACL acceptance, designated VM/GPU execution, active real training append, billing, real GCS backup/independent restore, reboot/power-loss durability, trainer metadata/IAM denial, or deployed liveness/quota/retention campaign. Future schema migration and mixed-version rollout remain pending. Spending accounting pauses new dispatch but cannot stop retained-resource charges without a separately authorized uptime/power policy. All queue requirements TP-161 through TP-195 full acceptance remains pending."
     }
   ],
   "requirements": [
@@ -2977,24 +3075,26 @@
     {
       "id": "TP-087",
       "section": "execution",
-      "title": "Let Workflows own waiting",
-      "requirement": "A durable GCP workflow shall dispatch, observe, retry, reconcile, and finalize each admitted run.",
+      "title": "Keep execution independent of submitting clients",
+      "requirement": "The authorized durable executor shall dispatch, observe, reconcile, and finalize admitted runs independently of submitting clients: GCP Workflows for Vertex, or the protected supervised host worker for the Compute Engine queue.",
       "what": "Execution continues independently of a chat process.",
       "why": "Meet runtime-controlled operation.",
-      "how": "Use authenticated workflow steps and persisted identifiers; agent has no execution lease.",
+      "how": "Use authenticated workflow steps for Vertex or a protected supervised host worker for VM containers, with persisted identities and bounded authorized retries; agent sessions hold no execution lease.",
       "positive": "Close CLI/agent sessions while a live job continues to finalization.",
       "negative": "Stopping an assistant or losing its context cannot stop observation or require token-consuming agent polling.",
-      "current": "E-WORKFLOW: workflow polling template exists; live detached execution acceptance is pending.",
-      "owner": "Admission/control service, durable state store, and GCP Workflows",
+      "current": "E-WORKFLOW and E-VMQUEUE: the original Vertex workflow and the supervised VM worker are separate execution lanes; live detached acceptance remains pending.",
+      "owner": "Admission/control service, durable state store, GCP Workflows and the VM host supervisor",
       "required_scopes": [
         "local_fault_and_concurrency",
-        "live_control_and_Vertex"
+        "live_control_and_Vertex",
+        "live_Compute_Engine_queue"
       ],
       "positive_procedure_id": "P-TP-087",
       "negative_procedure_id": "N-TP-087",
       "full_verification_status": "pending",
       "evidence_refs": [
-        "E-WORKFLOW"
+        "E-WORKFLOW",
+        "E-VMQUEUE"
       ],
       "observed_checks": []
     },
@@ -5095,7 +5195,964 @@
           "limits": "Bounded local case with recorded code snapshot. Human ground truth, authenticated authority and full live acceptance remain pending."
         }
       ]
+    },
+    {
+      "id": "TP-161",
+      "section": "vm_queue",
+      "title": "Admit prepared immutable requests",
+      "requirement": "The platform shall accept a finite ordered batch of prepared training requests, each binding an immutable dataset version and certified runtime digest",
+      "what": "accept a finite ordered batch of prepared training requests, each binding an immutable dataset version and certified runtime digest",
+      "why": "Unresolved or mutable inputs can change the meaning or runtime of work after enqueue.",
+      "how": "Validate each typed QueueIntent against protected immutable dataset, runtime, profile, and reviewed catalog records before admission.",
+      "positive": "Admit multiple real versions/objects; record the accepted run, attempt, and environment evidence.",
+      "negative": "reject unresolved datasets, tags, contradictory object/catalog references, and unavailable certification without paid effects; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-161",
+      "negative_procedure_id": "N-TP-161",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-162",
+      "section": "vm_queue",
+      "title": "Commit queue acceptance atomically",
+      "requirement": "Acknowledgment shall follow atomic persistence of queue intent, stable run IDs, admission evidence, and authorized budget reservations",
+      "what": "follow atomic persistence of queue intent, stable run IDs, admission evidence, and authorized budget reservations",
+      "why": "An acknowledgment without a durable transaction can lose accepted work or its budget reservation.",
+      "how": "Persist the full finite batch, stable identities, evidence, reservations, and acknowledgment in one transaction.",
+      "positive": "Disconnect/restart immediately after commit and recover all accepted entries; record the accepted run, attempt, and environment evidence.",
+      "negative": "interrupt before commit and observe no partial acknowledged batch; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-162",
+      "negative_procedure_id": "N-TP-162",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-163",
+      "section": "vm_queue",
+      "title": "Sequence entries in durable FIFO order",
+      "requirement": "Entries shall receive a durable FIFO sequence within an explicit VM/GPU resource scope",
+      "what": "receive a durable FIFO sequence within an explicit VM/GPU resource scope",
+      "why": "Concurrent or retried submissions must not change the operator-visible order.",
+      "how": "Allocate sequence numbers transactionally within the single-VM/GPU scope and retain them across restart.",
+      "positive": "Concurrent admissions produce a stable unique order; record the accepted run, attempt, and environment evidence.",
+      "negative": "timestamps, object filters, restart, and duplicate delivery cannot reorder it; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-163",
+      "negative_procedure_id": "N-TP-163",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-164",
+      "section": "vm_queue",
+      "title": "Share one VM workload authority",
+      "requirement": "The scope shall permit at most one active training workload across all supported submission routes, including immediate submissions",
+      "what": "permit at most one active training workload across all supported submission routes, including immediate submissions",
+      "why": "A second submission path could bypass serialization and overlap GPU work.",
+      "how": "Route all supported dispatch entry points through the same queue/resource lock and inspect existing workloads.",
+      "positive": "Queue behind existing active work; record the accepted run, attempt, and environment evidence.",
+      "negative": "race queue and immediate requests and independently verify no overlap or hidden bypass; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and primary integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-164",
+      "negative_procedure_id": "N-TP-164",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-165",
+      "section": "vm_queue",
+      "title": "Release the slot only after reconciliation",
+      "requirement": "An entry shall not launch until all earlier applicable work is resolved and owned container/process termination and GPU slot release are reconciled",
+      "what": "not launch until all earlier applicable work is resolved and owned container/process termination and GPU slot release are reconciled",
+      "why": "Container exit, monitor failure, and process termination are different observations.",
+      "how": "Retain the active reservation until exact owned container/process termination and GPU-slot release are observed.",
+      "positive": "Advance after confirmed termination; record the accepted run, attempt, and environment evidence.",
+      "negative": "running, queued, cancelling, timeout, missing observations, and monitor errors cannot release the slot; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-165",
+      "negative_procedure_id": "N-TP-165",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-166",
+      "section": "vm_queue",
+      "title": "Progress without a connected client",
+      "requirement": "Automatic progress shall be independent of SSH/CLI/agent sessions and shall recover safely from worker/engine restart while the VM is up",
+      "what": "be independent of SSH/CLI/agent sessions and shall recover safely from worker/engine restart while the VM is up",
+      "why": "The queue must continue when the submitting SSH, CLI, or assistant exits.",
+      "how": "Run the worker under a host supervisor, separate from clients and trainer containers, with bounded polling and reconciliation.",
+      "positive": "Complete a batch after closing clients; record the accepted run, attempt, and environment evidence.",
+      "negative": "lose completion observations and restart the worker/engine; verify safe reconciliation within the accepted bound; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and infrastructure handoff",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-166",
+      "negative_procedure_id": "N-TP-166",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-167",
+      "section": "vm_queue",
+      "title": "Fence claims and stale workers",
+      "requirement": "Scheduling shall use atomic claims, protected revisions, and dispatch intents; stale workers shall not mutate accepted state or create competing workloads",
+      "what": "use atomic claims, protected revisions, and dispatch intents; stale workers shall not mutate accepted state or create competing workloads",
+      "why": "An expired or delayed worker must not override a newer accepted state.",
+      "how": "Use atomic claims, expected revisions, claim tokens, and persisted dispatch intent; reject stale events before state changes.",
+      "positive": "Race workers and replay delayed events; record the accepted run, attempt, and environment evidence.",
+      "negative": "fail stale claims before forbidden effects and preserve valid progress; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-167",
+      "negative_procedure_id": "N-TP-167",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-168",
+      "section": "vm_queue",
+      "title": "Make repeated requests idempotent",
+      "requirement": "Repeated enqueue and dispatch attempts for the same effective intent shall resolve to the same entry/run/attempt/container, or an explicit held uncertain outcome",
+      "what": "resolve to the same entry/run/attempt/container, or an explicit held uncertain outcome",
+      "why": "Retries after a lost response must not create another training attempt.",
+      "how": "Bind idempotency to the effective immutable intent and preserve an explicit unknown outcome after ambiguous external calls.",
+      "positive": "Retry identical requests through faults; record the accepted run, attempt, and environment evidence.",
+      "negative": "changed intent under a reused key and uncertain external creation cannot create a second paid job; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-168",
+      "negative_procedure_id": "N-TP-168",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ],
+      "observed_checks": [
+        {
+          "direction": "positive",
+          "path": "tests/test_control_vm_queue_api.py",
+          "test": "test_peer_role_controls_actions_and_body_actor_is_ignored",
+          "claim": "A configured peer role authorizes an operator action and the body actor is ignored.",
+          "scope": "local_injected_peer",
+          "limits": "Injected identity and controller fixture only; actual Linux SO_PEERCRED and host ACLs remain unverified."
+        },
+        {
+          "direction": "negative",
+          "path": "tests/test_control_vm_queue_api.py",
+          "test": "test_worker_observations_cannot_call_operator_actions",
+          "claim": "Worker identity can record a worker observation but cannot call operator skip.",
+          "scope": "local_injected_peer",
+          "limits": "Injected identity and in-memory controller fixture only; live worker principal separation remains pending."
+        }
+      ]
+    },
+    {
+      "id": "TP-169",
+      "section": "vm_queue",
+      "title": "Reconcile side effects before replay",
+      "requirement": "Recovery shall reconcile queue, VM/boot, container, and process identities before replaying a side effect",
+      "what": "reconcile queue, VM/boot, container, and process identities before replaying a side effect",
+      "why": "A database lease cannot prove whether the VM or engine already performed an action.",
+      "how": "Compare persisted VM, boot, attempt, container, and process identities before any retry of an external side effect.",
+      "positive": "Crash before/after each commit and external create; record the accepted run, attempt, and environment evidence.",
+      "negative": "recover one accounted job or hold with evidence, never automatically launch again on lease expiry; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-169",
+      "negative_procedure_id": "N-TP-169",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-170",
+      "section": "vm_queue",
+      "title": "Revalidate delayed dispatch authority",
+      "requirement": "Enqueue and delayed dispatch shall independently validate authoritative approval, exact identities, integrity, budget, and current infrastructure capability evidence",
+      "what": "independently validate authoritative approval, exact identities, integrity, budget, and current infrastructure capability evidence",
+      "why": "Waiting requests can outlive approvals, readiness, or the budget under which they were admitted.",
+      "how": "Recheck current approval, exact digest, readiness expiry, resource capacity, revocation, and budget at dispatch.",
+      "positive": "Launch eligible stored requests; record the accepted run, attempt, and environment evidence.",
+      "negative": "expire/revoke/mutate prerequisites while waiting and verify blocked state with zero new resources; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and authority owners provide evidence",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-170",
+      "negative_procedure_id": "N-TP-170",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-171",
+      "section": "vm_queue",
+      "title": "Enforce cumulative campaign spending",
+      "requirement": "Queued training shall use trusted cost estimates, per-run limits, and an explicitly authorized cumulative queue/campaign cap covering retries, attributable running/idle VM time, and applicable storage/retained costs",
+      "what": "use trusted cost estimates, per-run limits, and an explicitly authorized cumulative queue/campaign cap covering retries, attributable running/idle VM time, and applicable storage/retained costs",
+      "why": "Per-run estimates alone do not bound cumulative training, idle VM, retry, or storage exposure.",
+      "how": "Reserve per-run and aggregate campaign cost from trusted operator config; account for retries, VM exposure, and applicable storage.",
+      "positive": "Account for the finite batch and actual/reserved exposure; record the accepted run, attempt, and environment evidence.",
+      "negative": "individually affordable jobs, concurrent requests, and retries cannot exceed the aggregate authorization; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and pricing/policy integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-171",
+      "negative_procedure_id": "N-TP-171",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-172",
+      "section": "vm_queue",
+      "title": "Apply visible continuation policy",
+      "requirement": "Continuation on success, failure, cancellation, and blocked prerequisites shall follow a versioned visible policy",
+      "what": "follow a versioned visible policy",
+      "why": "Implicit continuation can leapfrog failed or blocked work without operator review.",
+      "how": "Persist a versioned pause/continuation policy; hold failed, unknown, or blocked heads until authorized resolution.",
+      "positive": "Exercise each approved policy; record the accepted run, attempt, and environment evidence.",
+      "negative": "monitoring uncertainty and configuration changes cannot silently continue or skip the head; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-172",
+      "negative_procedure_id": "N-TP-172",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-173",
+      "section": "vm_queue",
+      "title": "Bound operator retries",
+      "requirement": "Retry shall be bounded by classified recoverability, attempt count, backoff, duration, and remaining spending authority",
+      "what": "be bounded by classified recoverability, attempt count, backoff, duration, and remaining spending authority",
+      "why": "Unbounded or misclassified retries can repeat failures and incur cost.",
+      "how": "Require explicit reason and current revision; enforce classified recoverability, attempt maximum, time window, and remaining authorization.",
+      "positive": "Recover an eligible transient fault; record the accepted run, attempt, and environment evidence.",
+      "negative": "deterministic failure, exhausted authorization, and unknown creation cannot loop or rebuild a runtime; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-173",
+      "negative_procedure_id": "N-TP-173",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-174",
+      "section": "vm_queue",
+      "title": "Pause and resume atomically",
+      "requirement": "Queue pause shall prevent new dispatch and resume shall revalidate the next entry; the pause/claim race shall have a documented atomic outcome",
+      "what": "prevent new dispatch and resume shall revalidate the next entry; the pause/claim race shall have a documented atomic outcome",
+      "why": "A pause racing with dispatch needs one durable ordering outcome.",
+      "how": "CAS pause/resume against claim state; resume revalidates the next head before dispatch.",
+      "positive": "Pause before a claim prevents launch; record the accepted run, attempt, and environment evidence.",
+      "negative": "if the claim committed first, show active work and require explicit cancellation rather than claiming it stopped; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-174",
+      "negative_procedure_id": "N-TP-174",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-175",
+      "section": "vm_queue",
+      "title": "Cancel waiting work atomically",
+      "requirement": "Cancellation of waiting entries shall be atomic and shall preserve the order and validity of remaining entries",
+      "what": "be atomic and shall preserve the order and validity of remaining entries",
+      "why": "A canceled request must not create a workload if claim and cancellation race.",
+      "how": "CAS waiting cancellation with claim and retain ordered history for remaining work.",
+      "positive": "Remove middle/head entries idempotently; record the accepted run, attempt, and environment evidence.",
+      "negative": "race removal against claim and verify no canceled waiting entry creates resources; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-175",
+      "negative_procedure_id": "N-TP-175",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-176",
+      "section": "vm_queue",
+      "title": "Observe active cancellation before release",
+      "requirement": "Active cancellation and deadlines shall be reconciled against owned container/process and VM state before slot release",
+      "what": "be reconciled against owned container/process and VM state before slot release",
+      "why": "A cancellation request is not proof that compute or GPU resources were released.",
+      "how": "Persist cancellation intent for the exact attempt; the worker stops and observes its container/process before releasing reservations.",
+      "positive": "Request cancellation and observe terminal state; record the accepted run, attempt, and environment evidence.",
+      "negative": "refused, delayed, or ambiguous cancellation cannot be displayed as stopped or permit overlap; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-176",
+      "negative_procedure_id": "N-TP-176",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-177",
+      "section": "vm_queue",
+      "title": "Authorize operators and worker observations separately",
+      "requirement": "Scheduling, completion observations, inspection, pause/resume, retry, skip, and cancellation shall be independently authorized for the declared resource scope",
+      "what": "be independently authorized for the declared resource scope",
+      "why": "A client able to submit must not be able to forge worker evidence or mutate unrelated state.",
+      "how": "Map Linux peer credentials to disjoint operator/worker principals; never accept actor identity in request JSON.",
+      "positive": "Exercise permitted principals; record the accepted run, attempt, and environment evidence.",
+      "negative": "submitter credentials cannot forge internal completion or control another unauthorized scope; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and IAM deployment owner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-177",
+      "negative_procedure_id": "N-TP-177",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-178",
+      "section": "vm_queue",
+      "title": "Expose actionable queue state",
+      "requirement": "The UI/CLI shall expose durable order, run identity, current activity, blocking reason, budget status, last observation, and required user action",
+      "what": "expose durable order, run identity, current activity, blocking reason, budget status, last observation, and required user action",
+      "why": "Operators need enough durable context to identify order, current work, blockers, and next action.",
+      "how": "Return durable ordered entries and attempts with IDs, current VM/container, blocker, cost/readiness, observations, and required action.",
+      "positive": "Inspect a mixed queue without source-code knowledge; record the accepted run, attempt, and environment evidence.",
+      "negative": "stale data, canceled work, and an unavailable observer cannot appear as current success or an empty healthy queue; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-178",
+      "negative_procedure_id": "N-TP-178",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ],
+      "observed_checks": [
+        {
+          "direction": "positive",
+          "path": "tests/test_control_vm_queue_api.py",
+          "test": "test_server_protocol_handles_bounded_socketpair_request",
+          "claim": "Bounded newline JSON status operation returns injected status payload.",
+          "scope": "local_socketpair_fixture",
+          "limits": "Socket pair bypasses filesystem socket binding and does not validate Linux peer credentials or production status completeness."
+        },
+        {
+          "direction": "negative",
+          "path": "tests/test_control_vm_queue_api.py",
+          "test": "test_unix_service_rejects_untrusted_peer_without_controller_effect",
+          "claim": "An unmapped injected peer is denied before controller effects.",
+          "scope": "local_socketpair_fixture",
+          "limits": "Does not establish actual UID/GID group permissions or Linux SO_PEERCRED."
+        }
+      ]
+    },
+    {
+      "id": "TP-179",
+      "section": "vm_queue",
+      "title": "Retain transition and recovery lineage",
+      "requirement": "Every queue transition and recovery decision shall preserve actor, time, revisions, configuration identity, runtime digest, VM/boot/container/process identity, and log/evidence references",
+      "what": "preserve actor, time, revisions, configuration identity, runtime digest, VM/boot/container/process identity, and log/evidence references",
+      "why": "Without provenance, a result or recovery decision cannot be independently audited.",
+      "how": "Append immutable actor/time/revision/config/digest/VM/boot/container/process/log/evidence data for every transition.",
+      "positive": "Trace a result and each failed action to its exact request; record the accepted run, attempt, and environment evidence.",
+      "negative": "out-of-order completion observations or redaction cannot erase necessary lineage; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-179",
+      "negative_procedure_id": "N-TP-179",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-180",
+      "section": "vm_queue",
+      "title": "Bound backlog and liveness",
+      "requirement": "Queue limits and liveness objectives shall be configured and verified, including maximum backlog, start delay after eligibility, stalled-work threshold, and recovery bounds",
+      "what": "be configured and verified, including maximum backlog, start delay after eligibility, stalled-work threshold, and recovery bounds",
+      "why": "Unbounded backlog and silent stalls can consume storage or hide a dead worker.",
+      "how": "Require configured finite backlog, start-delay, stall, and recovery bounds and expose threshold violations as blockers.",
+      "positive": "Test the accepted limits under load; record the accepted run, attempt, and environment evidence.",
+      "negative": "full queues, resource shortages, or worker/engine faults cannot create unbounded polling/retries or silently abandon entries; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and infrastructure capacity owner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-180",
+      "negative_procedure_id": "N-TP-180",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-181",
+      "section": "vm_queue",
+      "title": "Back up and migrate queue state safely",
+      "requirement": "Queue persistence shall support reviewed schema migration, backup/restore, and safe mixed-version rollout",
+      "what": "support reviewed schema migration, backup/restore, and safe mixed-version rollout",
+      "why": "Disk or controller changes must not erase committed intent or bypass old policy.",
+      "how": "Version store schema; use application-consistent backups, restore checks, and reconcile outstanding external effects before recovery.",
+      "positive": "Restore accepted history and replay old/new supported records; record the accepted run, attempt, and environment evidence.",
+      "negative": "older controllers cannot bypass reservations or lose queued intent; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and deployment integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-181",
+      "negative_procedure_id": "N-TP-181",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-182",
+      "section": "vm_queue",
+      "title": "Keep ordinary training free of release effects",
+      "requirement": "Ordinary queued experiments shall have zero image build/push, dependency-install, certification, dataset overwrite, or release-promotion effects",
+      "what": "have zero image build/push, dependency-install, certification, dataset overwrite, or release-promotion effects",
+      "why": "The experiment role must not gain publishing, installation, or promotion powers through queueing.",
+      "how": "Constrain normal queue and container identities so builds, pushes, dependency changes, certification, overwrite, and promotion are denied.",
+      "positive": "Observe permitted training end to end; record the accepted run, attempt, and environment evidence.",
+      "negative": "instrument forbidden APIs/identities and attempt alternate paths to prove denial; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and primary integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-182",
+      "negative_procedure_id": "N-TP-182",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-183",
+      "section": "vm_queue",
+      "title": "Separate process success from accepted results",
+      "requirement": "Training completion, output verification, MLflow finalization, and release eligibility shall remain explicit separate facts",
+      "what": "remain explicit separate facts",
+      "why": "A zero exit code alone does not establish valid artifacts, completed tracking, or promotion approval.",
+      "how": "Track terminal process state, output verification, MLflow finalization, and release eligibility independently.",
+      "positive": "Bind coherent outputs to the exact run and show finalization status; record the accepted run, attempt, and environment evidence.",
+      "negative": "a zero container exit code, partial outputs, or registration errors cannot falsely report an accepted model or trigger promotion; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and output/registry owner handoffs",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-183",
+      "negative_procedure_id": "N-TP-183",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-184",
+      "section": "vm_queue",
+      "title": "Verify complete local and live behavior",
+      "requirement": "Local and deployed evidence shall cover the complete queue behavior and fault model for the released revision",
+      "what": "cover the complete queue behavior and fault model for the released revision",
+      "why": "Local fakes cannot establish Linux permissions, GPU compatibility, billing, or restart recovery.",
+      "how": "Run local adverse checks and separate actual Linux/VM/GPU/cost/backup acceptance bound to the deployed revision.",
+      "positive": "Run ordered multi-dataset work with disconnected clients and record source/image/configuration evidence; record the accepted run, attempt, and environment evidence.",
+      "negative": "mocks or historical probes cannot satisfy live VM/GPU durability, permissions, or billing acceptance; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Primary integration reviewer and owning roles",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-184",
+      "negative_procedure_id": "N-TP-184",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-185",
+      "section": "vm_queue",
+      "title": "Append requests during active training",
+      "requirement": "Requests shall be accepted and appended while the designated VM is already training, without changing the active container or its request",
+      "what": "be accepted and appended while the designated VM is already training, without changing the active container or its request",
+      "why": "Appending work must not perturb a running container or its request.",
+      "how": "Accept enqueue while busy without touching the active request/container; verify later FIFO execution in live acceptance.",
+      "positive": "Add requests during actual GPU training and concurrent submissions; record the accepted run, attempt, and environment evidence.",
+      "negative": "verify original container ID, request, process, and outputs remain intact and new entries later execute in order; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-185",
+      "negative_procedure_id": "N-TP-185",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-186",
+      "section": "vm_queue",
+      "title": "Use a fresh isolated container per attempt",
+      "requirement": "Every admitted attempt shall run in a fresh container instance from its exact approved certified image digest, with isolated writable paths",
+      "what": "run in a fresh container instance from its exact approved certified image digest, with isolated writable paths",
+      "why": "Container reuse or shared writable paths can leak state across immutable requests.",
+      "how": "Start one new container for every attempt using the exact certified digest and distinct protected input/output/scratch paths.",
+      "positive": "Execute consecutive datasets in distinct container IDs; record the accepted run, attempt, and environment evidence.",
+      "negative": "verify digest and per-attempt directories; mutable tags, reused containers, cross-run scratch, or runtime builds cannot satisfy admission; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and Runtime Engineer verifies packaging",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-186",
+      "negative_procedure_id": "N-TP-186",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-187",
+      "section": "vm_queue",
+      "title": "Validate exact VM and GPU readiness",
+      "requirement": "VM dispatch shall validate observed project/zone/instance/GPU/driver/toolkit/engine/disk readiness for the exact runtime digest in addition to existing certification",
+      "what": "validate observed project/zone/instance/GPU/driver/toolkit/engine/disk readiness for the exact runtime digest in addition to existing certification",
+      "why": "A certified digest can still be incompatible with the actual VM's GPU, driver, toolkit, or mounts.",
+      "how": "Require fresh owner-supplied project/zone/instance/boot/GPU/driver/toolkit/engine/disk and digest-compatibility evidence.",
+      "positive": "Observe the approved VM running the exact GPU image; record the accepted run, attempt, and environment evidence.",
+      "negative": "changed drivers, incompatible GPUs, wrong instance, missing mounts, or failed GPU checks block launch without rebuilding; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Runtime/infrastructure owners publish evidence and control enforces",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-187",
+      "negative_procedure_id": "N-TP-187",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-188",
+      "section": "vm_queue",
+      "title": "Keep queue authority outside trainer containers",
+      "requirement": "Queue intent shall reside outside trainer containers in protected host storage on the verified boot disk; a host supervisor shall start/recover the worker independently of SSH",
+      "what": "reside outside trainer containers in protected host storage on the verified boot disk; a host supervisor shall start/recover the worker independently of SSH",
+      "why": "A trainer with host control access could bypass queue ordering, corrupt state, or start siblings.",
+      "how": "Keep SQLite, socket, credentials, supervisor, and engine controls outside trainer mounts; prove denial under the trainer identity.",
+      "positive": "Remove a finished trainer container, disconnect SSH, restart the worker, and reboot the VM; record the accepted run, attempt, and environment evidence.",
+      "negative": "committed queue history remains readable and unresolved work is safely reconciled; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and runtime/deployment handoff",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-188",
+      "negative_procedure_id": "N-TP-188",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ],
+      "observed_checks": [
+        {
+          "direction": "positive",
+          "path": "tests/test_control_vm_executor.py",
+          "test": "test_create_uses_full_registry_digest_and_argv_without_shell",
+          "claim": "Executor request uses full digest and argument vector in a local engine fixture.",
+          "scope": "local_engine_fixture",
+          "limits": "Mocked engine; fresh real GPU container and VM execution remain pending."
+        },
+        {
+          "direction": "negative",
+          "path": "tests/test_control_vm_executor.py",
+          "test": "test_container_spec_rejects_arbitrary_command",
+          "claim": "A disallowed container command is rejected before execution.",
+          "scope": "local_unit_fixture",
+          "limits": "Local contract check only; trainer identity and host-control denial require live ACL testing."
+        }
+      ]
+    },
+    {
+      "id": "TP-189",
+      "section": "vm_queue",
+      "title": "Represent interruption without false completion",
+      "requirement": "VM stop/reboot, engine state loss, and instance replacement shall preserve explicit interrupted/unknown outcomes and shall not imply job completion or authorize replay",
+      "what": "preserve explicit interrupted/unknown outcomes and shall not imply job completion or authorize replay",
+      "why": "Reboot and engine loss can destroy process state while leaving persisted dispatch intent.",
+      "how": "Record interrupted/unknown states and reconcile actual identities after reboot; never equate restart or missing telemetry with success.",
+      "positive": "Interrupt actual training and reboot; record the accepted run, attempt, and environment evidence.",
+      "negative": "restore the store and inspect VM/boot/container identities; no partial result is accepted and no duplicate workload starts without resolved authority; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and infrastructure owner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-189",
+      "negative_procedure_id": "N-TP-189",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-190",
+      "section": "vm_queue",
+      "title": "Declare interrupted-job recovery behavior",
+      "requirement": "Interrupted-job recovery shall declare whether training restarts, uses a verified supported checkpoint, or waits for operator action; every retry/resume has an attempt record and budget",
+      "what": "declare whether training restarts, uses a verified supported checkpoint, or waits for operator action; every retry/resume has an attempt record and budget",
+      "why": "Checkpoint continuation is not guaranteed and must never be inferred from queue persistence.",
+      "how": "Make restart/checkpoint/operator-retry policy explicit, immutable per attempt, and bounded by approval and budget.",
+      "positive": "Exercise the adopted supported path; record the accepted run, attempt, and environment evidence.",
+      "negative": "checkpoint mismatch, unsupported resume, or lost evidence cannot silently skip data, overwrite prior results, or promise exact continuation; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and Trainer Engineer handoff if checkpoint support changes",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-190",
+      "negative_procedure_id": "N-TP-190",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-191",
+      "section": "vm_queue",
+      "title": "Authorize VM uptime and idle exposure",
+      "requirement": "Running/idle VM exposure and queue-empty or blocked-queue behavior shall follow an explicit uptime/spending policy; power changes require separate authorization",
+      "what": "follow an explicit uptime/spending policy; power changes require separate authorization",
+      "why": "VM uptime and idle periods can cost money even when no container is training.",
+      "how": "Meter authorized VM uptime/idle exposure and define empty/blocked behavior; keep power changes behind separate authorization.",
+      "positive": "Exhaust the authorized exposure and empty/block the queue; record the accepted run, attempt, and environment evidence.",
+      "negative": "apply the approved stop/notify/hold behavior; no unauthorized shutdown or new VM creation occurs; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Control/policy integration reviewer and infrastructure power-management owner",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-191",
+      "negative_procedure_id": "N-TP-191",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-192",
+      "section": "vm_queue",
+      "title": "Deny trainers host and queue control",
+      "requirement": "Trainer containers shall not mutate queue state, access the engine socket, launch sibling workloads, or inherit unauthorized host/cloud control credentials",
+      "what": "not mutate queue state, access the engine socket, launch sibling workloads, or inherit unauthorized host/cloud control credentials",
+      "why": "The training process must be limited to required input and output capabilities.",
+      "how": "Run with a restricted UID, mounts, device assignment, network, GCS scope, memory/PID limits, and no engine socket or metadata control token.",
+      "positive": "Execute permitted data reads/result writes; record the accepted run, attempt, and environment evidence.",
+      "negative": "attempts to alter queue DB, invoke engine control, or use metadata credentials for forbidden operations are denied with independent effect checks; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Runtime/deployment owner and primary security/integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-192",
+      "negative_procedure_id": "N-TP-192",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-193",
+      "section": "vm_queue",
+      "title": "Protect queue commits and bound local resource use",
+      "requirement": "VM storage/GPU resource admission and cleanup shall protect queue commits and per-attempt evidence while bounding caches, logs, scratch, and orphan containers",
+      "what": "protect queue commits and per-attempt evidence while bounding caches, logs, scratch, and orphan containers",
+      "why": "A full filesystem or inode table can damage training, queue durability, and host recovery together.",
+      "how": "Reserve measured disk bytes/inodes for queue/OS recovery; bound caches/logs/scratch and clean only after evidence capture.",
+      "positive": "Simulate disk/inode exhaustion, engine/GPU unavailability, and orphan processes; record the accepted run, attempt, and environment evidence.",
+      "negative": "reject unsafe launch, preserve accepted queue state, and clean only verified eligible resources; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and Runtime Engineer/infrastructure handoff",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-193",
+      "negative_procedure_id": "N-TP-193",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ]
+    },
+    {
+      "id": "TP-194",
+      "section": "vm_queue",
+      "title": "Measure boot-disk capacity and reservations",
+      "requirement": "Storage admission on the user-reported 500 GB boot disk shall use measured usable/free capacity and inodes, conservative per-attempt peak footprint, outstanding reservations, and protected OS/queue headroom",
+      "what": "use measured usable/free capacity and inodes, conservative per-attempt peak footprint, outstanding reservations, and protected OS/queue headroom",
+      "why": "The nominal disk size says nothing about current usable capacity or job peak needs.",
+      "how": "Observe free capacity/inodes and outstanding reservations immediately before dispatch; block unknown or unsafe peak footprints.",
+      "positive": "Measure existing host/image use and run representative large jobs; record the accepted run, attempt, and environment evidence.",
+      "negative": "unknown sizes, concurrent reservations, oversized staging, and log/cache growth cannot silently exhaust the host or corrupt accepted queue intent; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Experiment Runner and runtime/infrastructure owner verifies filesystem limits",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-194",
+      "negative_procedure_id": "N-TP-194",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ],
+      "observed_checks": [
+        {
+          "direction": "positive",
+          "path": "tests/test_control_vm_executor.py",
+          "test": "test_disk_admission_fails_closed_for_insufficient_peak_space",
+          "claim": "Insufficient modeled capacity blocks a dispatch in a local fixture.",
+          "scope": "local_capacity_fixture",
+          "limits": "Does not measure the designated VM boot filesystem or concurrent OS/cache growth."
+        },
+        {
+          "direction": "negative",
+          "path": "tests/test_control_vm_executor.py",
+          "test": "test_disk_admission_fails_closed_for_insufficient_peak_space",
+          "claim": "A below-threshold space observation prevents container creation in the fixture.",
+          "scope": "local_capacity_fixture",
+          "limits": "No actual 500 GB boot-disk measurement or inode-exhaustion trial."
+        }
+      ]
+    },
+    {
+      "id": "TP-195",
+      "section": "vm_queue",
+      "title": "Review boot-disk retention and off-VM backups",
+      "requirement": "Boot-disk deletion/retention policy and an independently stored application-consistent queue backup shall be reviewed and restore-tested before unattended acceptance",
+      "what": "be reviewed and restore-tested before unattended acceptance",
+      "why": "A retained boot disk is not an independent backup and may be lost with the VM.",
+      "how": "Verify boot disk deletion settings and separately replicate application-consistent state off-VM; test restore and job reconciliation.",
+      "positive": "Restore backed-up queue/attempt records to an approved host and reconcile prior jobs; record the accepted run, attempt, and environment evidence.",
+      "negative": "VM deletion, boot-disk loss, or deleting a finished container cannot be assumed to preserve the only authoritative queue copy; inspect independent before/after state for zero forbidden effects.",
+      "owner": "Infrastructure/backup owner and primary integration review",
+      "current": "Queue implementation and local fixtures now exist for this area. Observed support is limited to the test claims listed in E-VMQUEUE; implementation coverage may be partial. Full positive and negative acceptance remains pending, including actual Linux ACLs, designated Compute Engine/GPU behavior, cost/billing, backups, and reboot recovery.",
+      "required_scopes": [
+        "local",
+        "linux_host",
+        "live_vm_gpu",
+        "live_acceptance"
+      ],
+      "positive_procedure_id": "P-TP-195",
+      "negative_procedure_id": "N-TP-195",
+      "full_verification_status": "pending",
+      "evidence_refs": [
+        "E-VMQUEUE"
+      ],
+      "observed_checks": [
+        {
+          "direction": "positive",
+          "path": "tests/test_control_queue_store.py",
+          "test": "test_pause_cas_capacity_freshness_and_durable_backup",
+          "claim": "Store backup/restore validation is exercised in the local SQLite suite.",
+          "scope": "local_sqlite_fixture",
+          "limits": "No off-VM copy or restore to a separate VM has been performed."
+        }
+      ]
     }
   ],
-  "requirement_count": 160
+  "requirement_count": 195
 }

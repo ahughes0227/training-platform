@@ -1,0 +1,23 @@
+version: 1
+source: defect_platform.skills
+namespaces:
+  onboarding:
+    audience: user
+    skills: [Welcome, Check Readiness, Choose Role]
+  user:
+    audience: user
+    skills: [List Projects, View Project, Create Project, Configure Data, Configure Experiment, Run Experiment, Track Runs, Compare Experiments, Review Results, Prepare Release, Deploy Model]
+  developer:
+    audience: developer
+    skills: [Change Workflow, Fix Bug, Add Feature, Remove Feature, Update Contract, Update Trainer, Update Runtime, Certify Runtime, Validate Change, Document Change]
+  internal:
+    audience: agent
+    skills: [Read Authority, Derive State, Check Boundary, Plan Handoff, Gate Handoff, Record Evidence, Reconcile State, Recover Failure, Check Integrity, Render View]
+project:
+  identity: generated-adjective-noun-utc-timestamp
+  authority: facade-over-existing-records
+  architecture_family: DINOv3
+  lifecycle: [draft, data_ingestion, dataset_ready, experiment_ready, training, evaluation, release_ready, deployed, failed, canceled, archived]
+readiness:
+  scope: local
+  statuses: [ready, blocked, unconfigured]

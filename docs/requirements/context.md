@@ -1,8 +1,8 @@
 # Defect Training Platform — Full System Requirements
 
-**Version:** 1.1
+**Version:** 1.2
 
-**Date:** September 28, 2026
+**Date:** September 29, 2026
 
 **Status:** Requirements baseline for implementation and acceptance; full platform acceptance is incomplete.
 
@@ -12,7 +12,7 @@
 
 ## How to use this document
 
-This document contains **160 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
+This document contains **195 individually identified requirements**. Each includes the requirement, **what** it means, **why** it exists, **how** it is enforced, required **positive evidence**, required **negative evidence**, and the evidence currently available.
 
 Read the lifecycle and assurance sections first. Use the section index to find a feature, then its `TP-NNN` identifier to track implementation and evidence. A requirement is a target obligation, not a claim that the current code already satisfies it.
 
@@ -20,13 +20,13 @@ The canonical structured register is [requirements.json](requirements/requiremen
 
 **“Positive evidence” describes successful required behavior. “Negative evidence” describes an attempted opposite or prohibited behavior being prevented.** Known defects and missing evidence are recorded separately. Procedures labeled `P-TP-NNN` and `N-TP-NNN` are acceptance obligations; they are not reports of tests already executed.
 
-The owner-approved semantic extension is detailed in [module contracts](MODULE_CONTRACTS.md) and [implementation plan](SEMANTIC_IMPLEMENTATION_PLAN.md). TP-151–TP-160 add explicit meaning, handoff, approval-store and deployment-capability obligations. Historical baseline observations below retain their original revision.
+The owner-approved semantic extension is detailed in [module contracts](MODULE_CONTRACTS.md) and [implementation plan](SEMANTIC_IMPLEMENTATION_PLAN.md). TP-151–TP-160 add explicit meaning, handoff, approval-store and deployment-capability obligations. TP-161–TP-195 define an additional unattended Compute Engine VM queue path while preserving the existing Vertex execution and certification requirements. The queue proposal IDs map consecutively: TQ-001 is TP-161 and TQ-035 is TP-195. Historical baseline observations below retain their original revision.
 
 ## 1. Purpose and authority
 
 ### 1.1 Intended system
 
-A person supplies an object definition, class information, notes, images or image locations, and CSV or BigQuery labels. A LiteLLM-backed assistant asks a bounded number of clarifying questions and proposes configuration. The person reviews unresolved label decisions and the concrete training plan. Deterministic services validate the plan, publish a versioned WebDataset, admit a budgeted experiment, and execute it on a Vertex CustomJob.
+A person supplies an object definition, class information, notes, images or image locations, and CSV or BigQuery labels. A LiteLLM-backed assistant asks a bounded number of clarifying questions and proposes configuration. The person reviews unresolved label decisions and the concrete training plan. Deterministic services validate the plan, publish a versioned WebDataset, and admit a budgeted experiment. The existing execution path submits a Vertex CustomJob. An additional approved execution path accepts finite prepared requests into a durable FIFO queue on the designated GCP Compute Engine VM and starts a fresh container from each request's exact certified image digest after the previous workload is resolved. These paths have separate execution mechanisms; the VM path does not remove or waive existing runtime certification.
 
 Each object type has its own DINOv3 + MLP classifier. The system selects a checkpoint primarily by validation MCC and secondarily by macro F1, evaluates it, derives review thresholds, and registers an MLflow candidate. An authenticated human approves a concrete release before Ray Serve on GKE/KubeRay serves it. The system retains the prior approved release for rollback.
 
@@ -41,7 +41,7 @@ The agent helps establish intent and repair software within its role. **The runt
 | DINOv3 feature extraction and configurable MLP | Supplied pinned weights; controlled last-layer fine-tuning |
 | CSV and BigQuery labels; local/GCS images | Approved, validated source locations |
 | Versioned WebDatasets in GCS | Accepted evidence, splits, and shard integrity are immutable |
-| One-machine GPU training | Configurable supported GPU count; no multi-machine requirement |
+| One-machine GPU training | Existing Vertex path and separately authorized single-VM Compute Engine queue; no multi-machine requirement |
 | MLflow run/registry control | Candidate creation is separate from production promotion |
 | Ray Serve with GKE/KubeRay | Configured serving profile and explicit release approval |
 | Structured logs and configurable Loki/OTLP integration | Delivered telemetry must be verified at its configured sink |
@@ -88,6 +88,8 @@ See [testing status](TEST_STATUS.md), [chronological acceptance](ACCEPTANCE.md),
 | Runtime release controller | Coordinate gated role-specific stages | Cannot collapse every stage into one unconstrained agent identity |
 | Certification service | Validate existing exact digest and issue bound evidence | Cannot edit or rebuild the validated software |
 | Admission/control service | Validate, reserve budget, persist intent, dispatch | Trusted facts resolved server-side |
+| VM queue operator | Submit prepared requests and perform authenticated queue controls on the designated host | Does not supply authority identity in request data or bypass revisions/budget/readiness |
+| VM queue worker | Claim one queue head, operate its exact fresh container, observe/reconcile completion | Cannot certify an image, alter policy, or infer completion from lease expiry |
 | Workflow/job identities | Observe/execute within approved job and data scope | No arbitrary IAM changes or production promotion |
 | MLflow candidate writer | Record runs and eligible candidate versions | No protected production-alias authority |
 | Human approval/release service | Verify approval, deploy, reconcile, rollback | Artifact identity and approval are immutable and scoped |
@@ -132,6 +134,22 @@ flowchart TD
     K --> L[Approved rollback or next release]
 ```
 
+The diagram above is the existing Vertex execution lane. The separately specified Compute Engine lane is:
+
+```mermaid
+flowchart TD
+    A[Prepared immutable request] --> B[Protected admission and current readiness checks]
+    B --> C[Atomic FIFO entry and bounded cost/storage reservation]
+    C --> D[Supervised host worker claims exact queue head]
+    D --> E[Fresh container from exact certified digest]
+    E --> F[Observe process/container terminal state]
+    F --> G[Verify outputs and MLflow finalization]
+    G --> H[Commit outcome; only then consider next entry]
+    X[Pause, revoke, capacity, budget, engine, or uncertain outcome] -.-> D
+```
+
+This added lane retains the certified immutable runtime identity established by the original release path and also requires current VM-specific GPU, driver, toolkit, engine, disk, mount, identity, and credential evidence. A Compute Engine container launch is not a Vertex CustomJob submission. The queue worker and store run on the host outside each trainer container; the trainer has no queue database or engine socket. The queue and training data share the user-reported 500 GB boot disk until actual filesystem layout is inspected, so admission uses measured usable/free bytes and inodes plus per-attempt peak estimates and protected queue/OS recovery headroom. No production capacity value is inferred from disk size alone.
+
 Runtime release is a separate path: **local trainer validation → pinned candidate build → GPU validation of that candidate → publication/digest resolution → exact-digest Vertex handshake → authenticated certification**. A candidate can be validated before publication by local content identity; after publication its resolved digest must match that same candidate. Where GPU validation is performed only after registry publication, publication is staging, not certification, and the subsequent gates must validate the resolved exact digest. The Certifier operates on an already built digest.
 
 Ordinary experiments only resolve a usable certification; they never enter the build path. A hardware change can reuse an image but must remain inside proven compatibility scope.
@@ -144,6 +162,7 @@ Ordinary experiments only resolve a usable certification; they never enter the b
 | Dataset | Preparing, committed/accepted, failed/quarantined | Only complete verified versions are consumable |
 | Runtime | Candidate, validation pending/failed, certified, revoked | Certification binds exact identity and supported scope |
 | Run | Pending/preparing, submitted, observed running, finalizing, succeeded/failed/canceled | Submission is not running; process success is not artifact acceptance |
+| VM queue entry/attempt | Waiting, dispatching, active, blocked, canceling, completed/canceled; attempt also records interrupted/unknown outcomes | FIFO sequence and attempt history are durable; unknown VM/container outcome holds its slot and is never replayed on lease expiry alone |
 | Reconciliation | Known, uncertain external outcome, stopping, resolved | May be orthogonal to run state; never hide unknown liveness |
 | Release | Staged, approved, deploying, ready/promoted, failed/reconciling, rolled back | Completed release needs verified traffic and identity |
 
@@ -162,6 +181,8 @@ Existing `RunState` and `ModelRelease` enums are smaller than this target lifecy
 9. **Complete system claim ⇒** all applicable requirements and accepted local/live positive and negative gates are satisfied.
 
 These are acceptance invariants, not assertions about the present implementation.
+
+The VM queue adds the same invariants across a different external-effect boundary: one worker-owned host resource scope, exact Compute Engine instance/boot identity, container and process identity, a new container per attempt, measured boot-filesystem reservations, and cumulative VM exposure. A committed database intent is not proof that an external container create/start did or did not happen; reconciliation must inspect the exact persisted identities before retry.
 
 ## 4. Typed records and artifact organization
 
@@ -310,6 +331,7 @@ Each entry's **How** names the required enforcing mechanism and responsible comp
 | Numeric production quality/SLO/recovery profiles are undefined | TP-036, TP-060, TP-115, TP-142, TP-144 | Accepted measurable profile and representative evaluation |
 | Current fixed trainer source has not been built/tested on GPU | TP-067–TP-074, TP-147 | New exact image and real DINOv3 selected-layer GPU validation |
 | Full deployed services and prevention campaign are unverified | TP-140–TP-150 | Complete authorized live positive/negative acceptance |
+| Compute Engine queue has local fixture coverage but no designated-host acceptance | TP-161–TP-195 | Verify Linux peer ACLs, measured filesystem capacity, active-training append, serial GPU containers, cumulative billing, backup/restore, and reboot recovery with owning roles |
 
 These are gaps against the target requirements, not “negative evidence” proving prevention. The requirements document does not fix them by describing the intended controls.
 
@@ -324,6 +346,7 @@ These are gaps against the target requirements, not “negative evidence” prov
 | E — Durable execution | Cloud Run/state/Workflows/Vertex, budgets/retries | Detached successful execution and verified finalization | Overspend admission, duplicates, forged callbacks, orphaned cancellation prevented |
 | F — Registry/releases/serving | Live MLflow, approved GKE/KubeRay/Ray deployment | Registered candidate, matching inference, promotion and rollback | Unapproved/wrong/stale/concurrent releases and unauthorized inference denied |
 | G — Operations | Loki/telemetry, IAM/harness, recovery/cleanup/load | Delivered evidence, restored state, measured configured objectives | Secret leaks, role bypasses, history loss, unbounded scaling prevented |
+| H — Compute Engine queue | Protected local API, durable FIFO/campaign accounting, worker/container lifecycle, live VM/GPU/host ACL and recovery | Ordered fresh-container runs, append while busy, disconnected-client progress, verified outputs and restored evidence | Forged peer/worker observations, overlapping work, stale authority, overspend, unsafe disk growth, duplicate recovery, trainer host-control denial |
 
 Local gates precede paid cloud work. Actual DINOv3 training fixes must pass local architecture checks first; the release containing them then needs a new exact image and relevant GPU test. Repeating only the generic MLP probe cannot validate the changed DINOv3 path.
 
@@ -343,6 +366,9 @@ Complete live acceptance requires all relevant integrations to use intended iden
 | Serving objectives | Target workload, latency, throughput, availability, overload/scaling limits | Numeric values not agreed |
 | Recovery/retention | RPO/RTO, evidence/data retention, restore and deletion authority | Numeric/policy profile not agreed |
 | Runtime compatibility | Supported Python/PyTorch/CUDA/GPU families/counts and certification validity/revocation | Old A100 probe only; current complete matrix pending |
+| Compute Engine queue host | Project, zone, instance and boot identity; GPU/driver/toolkit/engine; startup supervisor; access scopes and artifact credentials | A VM was user-confirmed; actual readiness and identities remain to be evidenced |
+| Queue filesystem | Measured usable/free bytes and inodes, image/cache usage, per-attempt peak footprint, OS/queue headroom, deletion setting, restore path | User-reported 500 GB boot disk; capacity, inode headroom, layout, and deletion/backup behavior uninspected |
+| Queue campaign authority | Finite queue depth, per-run and cumulative cap, VM uptime/idle exposure, retry bounds and cost window | Numeric authorization and authoritative cost measurement remain required |
 
 No unresolved numeric value may be represented as passing. An accepted environment profile is itself versioned evidence.
 
@@ -368,6 +394,7 @@ The system is complete only when every applicable requirement is closed for the 
 | Loki-compatible configurable telemetry | TP-117–TP-125 |
 | Four coding roles and enforced boundaries | TP-126–TP-139 |
 | Actual GPU and full live infrastructure acceptance | TP-006, TP-140–TP-150 |
+| Unattended serial training on the confirmed Compute Engine VM with a fresh certified-digest container per attempt | TP-161–TP-195 |
 
 ### 8.2 Supplied prompt mapping
 

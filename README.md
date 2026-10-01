@@ -1,14 +1,24 @@
 # Defect Training Platform
 
+The [Compute Engine training queue](docs/VM_TRAINING_QUEUE.md) provides a local
+queue service and supervised worker under `defect train queue`. Its
+[implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) distinguishes
+local validation from the remaining live VM acceptance gates.
+
 Train a separate DINOv3 + MLP classifier for each type of inspected object. Each input is a crop of a defect that has already been found. The model names its defect class, reports confidence, and flags uncertain cases for review. It does not decide product disposition.
 
 ## Testing status
 
-The local suite passes 115 tests, including actual DINOv3 training with generated weights and real local Ray HTTP inference. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
+The latest local suite passed 177 tests, including 63 queue cases; the separate Ray HTTP integration test also passed. See [queue implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) for the remaining live VM gates. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
 
 ## Start here
 
-Read the [full system requirements](docs/REQUIREMENTS.md) for 160 requirements, their rationale and enforcement, and the positive and negative evidence needed for acceptance.
+Read the [program feature guide](docs/FEATURES.md) for the implemented capabilities, configuration, commands, artifact locations, and current verification limits.
+
+Read the [ChatGPT skill layer](docs/SKILLS.md) for the onboarding, user,
+developer, and agent-only skills that expose those capabilities conversationally.
+
+Read the [full system requirements](docs/REQUIREMENTS.md) for 195 requirements, their rationale and enforcement, and the positive and negative evidence needed for acceptance.
 
 See the [semantic implementation plan](docs/SEMANTIC_IMPLEMENTATION_PLAN.md), [explicit module contracts](docs/MODULE_CONTRACTS.md), and [source-bound local evidence](docs/SEMANTIC_TEST_STATUS.md). Class meanings, IDs, dataset/model manifests and bundle hashes now travel across the modules; cloud submission requires a reviewed operator catalog and a current pinned infrastructure observation.
 

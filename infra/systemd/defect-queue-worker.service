@@ -1,0 +1,37 @@
+[Unit]
+Description=Defect training queue VM worker
+After=network-online.target docker.service defect-queue-api.service
+Wants=network-online.target
+Requires=docker.service
+RequiresMountsFor=/etc/defect-platform /var/lib/defect-platform
+
+[Service]
+Type=simple
+User=root
+Group=defect-queue-state
+# The current controller must chown per-attempt output/scratch for the container
+# UID and access the privileged local engine. This is host-root authority.
+UMask=0007
+WorkingDirectory=/opt/defect-training-service
+ExecStart=/usr/local/bin/defect train queue worker --config /etc/defect-platform/queue.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=60s
+KillSignal=SIGTERM
+ReadWritePaths=/var/lib/defect-platform
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Keep host device visibility for GPU process reconciliation; the trainer gets
+# only its selected GPU through the container engine request.
+PrivateDevices=false
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,146 @@
+# TEMPLATE ONLY. This file deliberately contains invalid replacement values and
+# MUST fail QueueServiceConfig validation until an operator supplies real,
+# verified VM/runtime/data, budget, backup, credential, and UID evidence.
+# Install the completed file as root:defect-queue-state mode 0640. Never put secrets here.
+scope: REPLACE_WITH_GCE_INSTANCE_AND_GPU_SCOPE
+storage_path: /var/lib/defect-platform
+socket_path: /run/defect-platform/queue.sock
+catalog_root: /var/lib/defect-platform/catalogs
+state_group_id: REPLACE_WITH_QUEUE_STATE_GID
+allowed_operator_uids: [REPLACE_WITH_NUMERIC_OPERATOR_UID]
+worker_uids: [REPLACE_WITH_NUMERIC_WORKER_UID]
+socket_group_id: REPLACE_WITH_OPERATOR_SOCKET_GID
+tick_interval_seconds: 15
+worker_id: defect-queue-worker
+lease_seconds: 120
+
+operator:
+  revision: 1
+  max_backlog: REPLACE_WITH_APPROVED_FINITE_LIMIT
+  campaign_cost_cap_usd: REPLACE_WITH_APPROVED_CAMPAIGN_CAP
+  campaign_authorization_id: REPLACE_WITH_APPROVAL_RECORD
+  cost_meter_started_at: 2026-09-29T00:00:00Z
+  vm_hourly_cost_usd: REPLACE_WITH_VERIFIED_VM_HOURLY_COST
+  reserved_headroom_bytes: REPLACE_WITH_MEASURED_OS_AND_QUEUE_HEADROOM
+  reserved_headroom_inodes: REPLACE_WITH_MEASURED_INODE_HEADROOM
+  usable_capacity_bytes: REPLACE_WITH_MEASURED_FILESYSTEM_CAPACITY
+  observed_free_bytes: REPLACE_WITH_CURRENT_FREE_BYTES
+  observed_free_inodes: REPLACE_WITH_CURRENT_FREE_INODES
+  capacity_observed_at: 2026-09-29T00:00:00Z
+  max_start_delay_seconds: REPLACE_WITH_APPROVED_BOUND
+  stalled_work_seconds: REPLACE_WITH_APPROVED_BOUND
+  recovery_bound_seconds: REPLACE_WITH_APPROVED_BOUND
+  max_capacity_observation_age_seconds: REPLACE_WITH_APPROVED_BOUND
+  retry_backoff_seconds: REPLACE_WITH_APPROVED_RETRY_DELAY
+  failure_policy: pause
+  backup_evidence_ref: REPLACE_WITH_RESTORE_TEST_EVIDENCE
+
+readiness:
+  project_id: REPLACE_WITH_GCP_PROJECT
+  zone: REPLACE_WITH_GCE_ZONE
+  instance_id: REPLACE_WITH_NUMERIC_GCE_INSTANCE_ID
+  boot_id: REPLACE_WITH_CURRENT_LINUX_BOOT_ID
+  gpu_identity: REPLACE_WITH_EXACT_SELECTED_GPU_UUIDS
+  driver_version: REPLACE_WITH_OBSERVED_NVIDIA_DRIVER_VERSION
+  toolkit_version: REPLACE_WITH_OBSERVED_NVIDIA_CONTAINER_TOOLKIT_VERSION
+  engine_version: REPLACE_WITH_OBSERVED_DOCKER_SERVER_VERSION
+  compatible_digests:
+    - REPLACE_WITH_CERTIFIED_IMMUTABLE_IMAGE_DIGEST
+  observed_at: 2026-09-29T00:00:00Z
+  expires_at: 2026-09-29T00:15:00Z
+  evidence_ref: REPLACE_WITH_GPU_RUNTIME_VALIDATION
+  metadata_denial_evidence_ref: REPLACE_WITH_TESTED_METADATA_DENIAL
+  credential_scope_evidence_ref: REPLACE_WITH_TESTED_LEAST_PRIVILEGE_CREDENTIALS
+  boot_disk_evidence_ref: REPLACE_WITH_MEASURED_DISK_AND_RETENTION_EVIDENCE
+
+approved_runtimes:
+  REPLACE_WITH_RUNTIME_ID:
+    runtime_id: REPLACE_WITH_RUNTIME_ID
+    source_commit: REPLACE_WITH_40_HEX_SOURCE_COMMIT
+    image_tag: REPLACE_WITH_HUMAN_READABLE_TAG
+    image_digest: REPLACE_WITH_CERTIFIED_IMMUTABLE_IMAGE_DIGEST
+    runtime_version: REPLACE_WITH_RUNTIME_VERSION
+    python_version: REPLACE_WITH_PYTHON_VERSION
+    pytorch_version: REPLACE_WITH_PYTORCH_VERSION
+    cuda_version: REPLACE_WITH_CUDA_VERSION
+    validation:
+      trainer: true
+      container_gpu: true
+      vertex_gpu: true
+      gcs_read: true
+      gcs_write: true
+    certified: true
+    certified_at: 2026-09-29T00:00:00Z
+
+experiment_profiles:
+  REPLACE_WITH_EXPERIMENT_ID: REPLACE_WITH_APPROVED_PROFILE_ID_FOR_EXACT_EXPERIMENT
+approved_datasets:
+  REPLACE_WITH_IMMUTABLE_DATASET_VERSION:
+    version_id: REPLACE_WITH_IMMUTABLE_DATASET_VERSION
+    object_slug: REPLACE_WITH_OBJECT_SLUG
+    root_uri: gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_DATASET_ROOT
+    manifest_uri: gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_DATASET_ROOT/manifest.json
+    shard_uris:
+      train: [gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_DATASET_ROOT/train]
+    sample_counts: {train: 1}
+    sha256: REPLACE_WITH_64_HEX_DATASET_HASH
+    source_snapshot_uri: gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_DATASET_ROOT/source.json
+    semantic_manifest_uri: gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_DATASET_ROOT/semantics.json
+    semantic_sha256: REPLACE_WITH_64_HEX_SEMANTIC_HASH
+
+approved_experiments:
+  REPLACE_WITH_EXPERIMENT_ID:
+    experiment_id: REPLACE_WITH_EXPERIMENT_ID
+    object_slug: REPLACE_WITH_OBJECT_SLUG
+    dataset_version_id: REPLACE_WITH_IMMUTABLE_DATASET_VERSION
+    runtime_id: REPLACE_WITH_RUNTIME_ID
+    model:
+      backbone: REPLACE_WITH_APPROVED_MODEL_BACKBONE
+      weights_uri: gs://REPLACE_WITH_BUCKET/REPLACE_WITH_IMMUTABLE_WEIGHTS_OBJECT
+      weights_sha256: REPLACE_WITH_64_HEX_WEIGHTS_HASH
+      image_size: REPLACE_WITH_IMAGE_SIZE
+      hidden_dim: REPLACE_WITH_HIDDEN_DIMENSION
+      dropout: REPLACE_WITH_DROPOUT
+      unfreeze_last_n: REPLACE_WITH_UNFREEZE_COUNT
+    epochs: REPLACE_WITH_EPOCH_COUNT
+    batch_size: REPLACE_WITH_BATCH_SIZE
+    learning_rate: REPLACE_WITH_LEARNING_RATE
+    optimizer: REPLACE_WITH_APPROVED_OPTIMIZER
+    loss: REPLACE_WITH_APPROVED_LOSS
+    seed: REPLACE_WITH_APPROVED_SEED
+    catalog_sha256: REPLACE_WITH_REVIEWED_CATALOG_HASH
+
+approved_profiles:
+  REPLACE_WITH_PROFILE_ID:
+    profile_id: REPLACE_WITH_PROFILE_ID
+    project_id: REPLACE_WITH_GCP_PROJECT
+    zone: REPLACE_WITH_GCE_ZONE
+    instance_id: REPLACE_WITH_NUMERIC_GCE_INSTANCE_ID
+    gpu_identity: REPLACE_WITH_EXACT_SELECTED_GPU_UUIDS
+    image_digest: REPLACE_WITH_CERTIFIED_IMMUTABLE_IMAGE_DIGEST
+    estimated_runtime_seconds: REPLACE_WITH_ESTIMATE
+    max_runtime_seconds: REPLACE_WITH_APPROVED_MAXIMUM
+    per_run_cost_usd: REPLACE_WITH_AUTHORIZED_MAXIMUM_COST
+    storage_peak_bytes: REPLACE_WITH_CONSERVATIVE_PEAK_BYTES
+    storage_peak_inodes: REPLACE_WITH_CONSERVATIVE_PEAK_INODES
+    max_attempts: REPLACE_WITH_APPROVED_FINITE_ATTEMPT_LIMIT
+
+experiment_profiles:
+  REPLACE_WITH_EXPERIMENT_ID: REPLACE_WITH_PROFILE_ID
+
+output_root_uri: gs://REPLACE_WITH_OUTPUT_BUCKET/REPLACE_WITH_RUN_PREFIX
+mlflow_tracking_uri: https://REPLACE_WITH_APPROVED_MLFLOW_ENDPOINT
+mlflow_experiment_name: REPLACE_WITH_PREPROVISIONED_EXPERIMENT
+credential_path: /etc/defect-platform/trainer-credentials.json
+trainer_uid: REPLACE_WITH_DEDICATED_NONZERO_TRAINER_UID
+trainer_gid: REPLACE_WITH_DEDICATED_NONZERO_TRAINER_GID
+gpu_devices: [0]
+network_name: defect-trainer-isolated
+memory_bytes: REPLACE_WITH_MEASURED_CONTAINER_MEMORY_LIMIT
+pids_limit: REPLACE_WITH_REVIEWED_PROCESS_LIMIT
+vm_cost_upper_bound_hourly_usd: REPLACE_WITH_VERIFIED_VM_HOURLY_COST
+cost_authorized_from: 2026-09-29T00:00:00Z
+cost_authorized_until: 2026-09-29T12:00:00Z
+backup_root_uri: gs://REPLACE_WITH_SEPARATE_BACKUP_BUCKET/queue
+backup_interval_seconds: REPLACE_WITH_APPROVED_BACKUP_INTERVAL
+backup_local_keep: REPLACE_WITH_APPROVED_LOCAL_BACKUP_COUNT

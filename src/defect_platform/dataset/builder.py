@@ -22,6 +22,7 @@ from defect_platform.semantics import (
 
 from .duplicates import DuplicateReport, find_duplicates
 from .labels import PreviewResult, map_label, preview_dataset
+from .quality import QualityResult, analyze_cleanlab
 from .sources import LabelRow, read_label_source
 from .splits import assign_splits
 
@@ -72,6 +73,16 @@ def build_dataset(
             first_uri, message = next(iter(duplicate_report.errors.items()))
             raise ValueError(f"Cannot validate image {first_uri!r}: {message}")
         _raise_duplicate_label_conflicts(duplicate_report, samples)
+        quality_result: QualityResult | None = None
+        if spec.cleanlab is not None:
+            quality_result = analyze_cleanlab(spec.cleanlab, object_spec, samples)
+            if quality_result.report["issue_fraction"] > spec.cleanlab.max_issue_fraction:
+                raise ValueError(
+                    "Cleanlab quality gate failed: "
+                    f"{quality_result.report['issue_count']} of {len(samples)} samples flagged "
+                    f"({quality_result.report['issue_fraction']:.4f}) exceeds "
+                    f"{spec.cleanlab.max_issue_fraction:.4f}; report was generated but not published"
+                )
 
         # Connect duplicate and product groups so related images cannot cross splits.
         union = _UnionFind([sample.row.image_uri for sample in samples])
@@ -131,6 +142,7 @@ def build_dataset(
                 "row_count": len(rows),
             },
             "split": spec.split.model_dump(mode="json"),
+            "cleanlab": quality_result.report if quality_result else None,
         }
         source_path = stage_root / "source-snapshot.json"
         _write_json_file(source_path, source_snapshot)
@@ -164,6 +176,12 @@ def build_dataset(
         build_dir = stage_root / "artifacts"
         build_dir.mkdir()
         _build_local_artifacts(samples, records, source_path, spec.shard_max_samples, build_dir)
+        quality_artifacts = {}
+        if quality_result is not None:
+            quality_path = build_dir / "cleanlab" / "report.json"
+            quality_path.parent.mkdir(parents=True, exist_ok=True)
+            quality_path.write_bytes(quality_result.report_bytes)
+            quality_artifacts["cleanlab/report.json"] = _sha256_file(quality_path)
         manifest_path = build_dir / "manifest.jsonl"
         manifest_digest = _sha256_file(manifest_path)
         shard_names = sorted(path.relative_to(build_dir).as_posix() for path in build_dir.glob("shards/*.tar"))
@@ -183,6 +201,7 @@ def build_dataset(
             "split": spec.split.model_dump(mode="json"),
             "semantic_manifest_sha256": semantic_manifest.sha256,
             "semantic_manifest_file_sha256": hashlib.sha256(semantic_bytes).hexdigest(),
+            "quality_artifacts": quality_artifacts,
         }
         _write_json_file(build_dir / "manifest.json", manifest)
         shutil.copyfile(source_path, build_dir / "source-snapshot.json")
@@ -196,6 +215,7 @@ def build_dataset(
                     "source": source_digest,
                     "shards": shard_hashes,
                     "semantics": hashlib.sha256(semantic_bytes).hexdigest(),
+                    "quality_artifacts": quality_artifacts,
                 }
             )
         )

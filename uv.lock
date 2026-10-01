@@ -321,6 +321,22 @@ wheels = [
 ]
 
 [[package]]
+name = "cleanlab"
+version = "2.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+    { name = "termcolor" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/ab/80cbcd832bda6e18ef22f0f9120675f70b7d532a164f762fb660f73fc346/cleanlab-2.9.0.tar.gz", hash = "sha256:abe25fe0c772ced8c4b36a94e0de71726db00802224b7fb7bee06db6ff95eb4e", size = 273633, upload-time = "2026-01-13T18:02:46.7Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/8a/612ba4408b0b21c7ca8cf5671d61ddb5499e675bcec3058e6f48839672cb/cleanlab-2.9.0-py3-none-any.whl", hash = "sha256:9a317d9ba547c388dd15fffec71fcf838cda1404ef4034b6865da78be6603f4e", size = 306078, upload-time = "2026-01-13T18:02:44.912Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -552,6 +568,7 @@ cloud = [
     { name = "uvicorn" },
 ]
 data = [
+    { name = "cleanlab" },
     { name = "imagehash" },
     { name = "webdataset" },
 ]
@@ -584,6 +601,7 @@ train = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cleanlab", marker = "extra == 'data'", specifier = ">=2.9,<3" },
     { name = "fastapi", marker = "extra == 'cloud'", specifier = ">=0.115,<1" },
     { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.115,<1" },
     { name = "google-cloud-aiplatform", marker = "extra == 'cloud'", specifier = ">=1.75,<2" },
@@ -3151,6 +3169,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a", size = 49413, upload-time = "2026-02-07T10:45:33.841Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
+]
+
+[[package]]
+name = "termcolor"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/79/cf31d7a93a8fdc6aa0fbb665be84426a8c5a557d9240b6239e9e11e35fc5/termcolor-3.3.0.tar.gz", hash = "sha256:348871ca648ec6a9a983a13ab626c0acce02f515b9e1983332b17af7979521c5", size = 14434, upload-time = "2025-12-29T12:55:21.882Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/d1/8bb87d21e9aeb323cc03034f5eaf2c8f69841e40e4853c2627edf8111ed3/termcolor-3.3.0-py3-none-any.whl", hash = "sha256:cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5", size = 7734, upload-time = "2025-12-29T12:55:20.718Z" },
 ]
 
 [[package]]

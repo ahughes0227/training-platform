@@ -8,6 +8,7 @@ sources:
     group_id_column: null
     image_root: null
 label_mapping: {}
+cleanlab: null
 split:
   train: 0.7
   validation: 0.15

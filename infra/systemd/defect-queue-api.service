@@ -1,0 +1,35 @@
+[Unit]
+Description=Defect training queue local API
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/etc/defect-platform /var/lib/defect-platform
+
+[Service]
+Type=simple
+User=defect-queue-api
+Group=defect-queue-state
+UMask=0007
+WorkingDirectory=/opt/defect-training-service
+Environment=DEFECT_VM_QUEUE_SOCKET=/run/defect-platform/queue.sock
+ExecStart=/usr/local/bin/defect train queue serve --config /etc/defect-platform/queue.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+RuntimeDirectory=defect-platform
+RuntimeDirectoryMode=0711
+RuntimeDirectoryPreserve=no
+ReadWritePaths=/var/lib/defect-platform /run/defect-platform
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

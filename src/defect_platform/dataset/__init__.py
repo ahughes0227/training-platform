@@ -3,6 +3,7 @@
 from .builder import build_dataset
 from .duplicates import DuplicateReport, find_duplicates
 from .labels import LabelException, PreviewResult, preview_dataset
+from .quality import QualityResult, analyze_cleanlab
 from .sources import LabelRow, read_label_source
 from .verification import load_dataset_semantics, verify_dataset_version
 
@@ -11,6 +12,8 @@ __all__ = [
     "LabelException",
     "LabelRow",
     "PreviewResult",
+    "QualityResult",
+    "analyze_cleanlab",
     "build_dataset",
     "find_duplicates",
     "load_dataset_semantics",

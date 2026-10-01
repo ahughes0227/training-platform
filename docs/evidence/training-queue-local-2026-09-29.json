@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-29T13:28:40.361203+00:00",
+  "baseline_commit": "024c6af5e9f4131b06297da5fbc7281fbd5dace7",
+  "working_tree": "Uncommitted feature files and integration changes; preexisting user documentation preserved.",
+  "scope": "local_implementation_live_vm_acceptance_pending",
+  "checks": [
+    {
+      "command": ".venv/bin/pytest -q --ignore=tests/integration/test_semantic_ray_http.py",
+      "passed": 177,
+      "warnings": 2,
+      "elapsed_seconds": 6.75,
+      "timing": "final local source run"
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/integration/test_semantic_ray_http.py",
+      "passed": 1,
+      "warnings": 17,
+      "elapsed_seconds": 17.53,
+      "timing": "Separate earlier session run; approved loopback permission; trainer/Ray paths subsequently unchanged"
+    },
+    {
+      "command": ".venv/bin/pytest --collect-only -q tests/test_control_queue_store.py tests/test_control_queue_worker.py tests/test_control_vm_executor.py tests/test_control_queue_integration.py tests/test_control_vm_queue_api.py tests/test_control_vm_queue_cli.py",
+      "collected": 63
+    },
+    {
+      "command": ".venv/bin/ruff check src/defect_platform/control/queue* src/defect_platform/control/vm* tests/test_control_queue* tests/test_control_vm*",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/python scripts/requirements_document.py --check",
+      "result": "passed",
+      "requirements": 195,
+      "positive_procedures": 195,
+      "negative_procedures": 195,
+      "evidence_entries": 21
+    }
+  ],
+  "file_sha256": {
+    "src/defect_platform/control/queue_admission.py": "c554d31c089ef9881334caca1714852aee004a8df1924906b011caffa80764c1",
+    "src/defect_platform/control/queue_contracts.py": "9a50e81cd1048d7f6f7ffe976175cd66d3ec8aa4452fa1b12c05bad91d453d1a",
+    "src/defect_platform/control/queue_controller.py": "4d65d117f3818d8c0b5db22f5e43a42156afbc95cc18856ef1f32151527a3e5c",
+    "src/defect_platform/control/queue_store.py": "6710111f9aee2f4e26c99464f88c9fdb5c02da783c8d242c02b911b888cf7cd1",
+    "src/defect_platform/control/queue_worker.py": "112af1412b37ab89439f27b34a108321cc1b34b01651e0063c4b6e4404a28248",
+    "src/defect_platform/control/vm_executor.py": "f0e73bb3dbc3942584d6802d42d8092abb7462a3a1276dd80ae950028b996876",
+    "src/defect_platform/control/vm_queue_api.py": "c6fe8c983f8a80123009a1367f09ac7026681bd62e4cc25aaec5b75795c601fd",
+    "src/defect_platform/control/vm_queue_client.py": "b5ed95bb86c19fb24968c0f0c468976a2694a7b8146700c96ae76c92e2e9f349",
+    "src/defect_platform/control/vm_queue_commands.py": "5b1f313783e99034d64c6f775fe4e5d95b417576b219f4ef8b5e20eb5f8b7463",
+    "src/defect_platform/cli.py": "3d3cd88f67d34bd5f03649a97f0f9e390d5ab47e9ca9d07a09662ce28a27f46e",
+    "tests/test_control_queue_integration.py": "7cbcaae68caffc956f91eb78cbc2103457a5f5f8523b99bcc0b39e2d681c98e4",
+    "tests/test_control_queue_store.py": "714674682717fdea65fe3f35eb20d285488f1b2a8fd076713a9deb034655a1f1",
+    "tests/test_control_queue_worker.py": "e7f8d95ca9316830e1bf1de23eccd03c6392a335de2b43c4f9ce7c93d0d865b1",
+    "tests/test_control_vm_executor.py": "07fe410d3aa270d7650031615353c1734b64831b805ceaa4c1379a918f3c1993",
+    "tests/test_control_vm_queue_api.py": "fc1a27f56ba4fba8503481362703a8b9b99dc6e1676658edf5d07504b9406550",
+    "tests/test_control_vm_queue_cli.py": "5709f489899eb91470df174ab970fa9a2a30f486ff84d54f17ae1e0f27ba8d2a",
+    "infra/systemd/README.md": "9ed8c086edced67110ae558fc657c79700fae3781f31daa450549bf8ac3e7b61",
+    "infra/systemd/defect-queue-api.service": "3209e59c3501b05ecfb5de1bbb3a68b0b2ed35791b02a9d668b5fe4d59c12ccd",
+    "infra/systemd/defect-queue-worker.service": "7327122314e2d4442ba33d7798390b189e00e134b73db48117c0ee569f69a6f7",
+    "infra/systemd/queue-config.example.yaml": "84b8b06bcc02fb80b4e78bff4dd02b27600f661512003c9bb5ec49f15ef9d7c4"
+  },
+  "limits": [
+    "Queue engine, GCE identity, GCS transfer and tracking tests use injected runners/observations; no designated VM/GPU or paid training acceptance.",
+    "Socket-pair/injected-principal checks do not verify Linux SO_PEERCRED, real service ACLs or container/metadata/IAM denial.",
+    "No deployed filesystem power-loss, reboot, independent GCS restore, real billing or liveness/retention/quota campaign.",
+    "All TP-161 through TP-195 full positive and negative acceptance remains pending; risk reductions are conditional targets."
+  ]
+}

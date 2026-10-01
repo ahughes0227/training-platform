@@ -1,5 +1,11 @@
 # Start here
 
+For unattended training on one Compute Engine VM, see [training queue
+operations](VM_TRAINING_QUEUE.md), [host service setup](../infra/systemd/README.md),
+and [local implementation evidence](TRAINING_QUEUE_IMPLEMENTATION.md). The VM
+queue retains existing runtime certification requirements; live host acceptance
+is still required before enabling unattended training.
+
 This platform is for one task: name the class of a defect that has already been found and cropped. Give each inspected object type its own project. The platform keeps a record of what images, labels, settings, software image, and model produced each result.
 
 For the complete system contract and acceptance criteria, read [the full requirements document](REQUIREMENTS.md). It distinguishes required behavior, prevention checks, current evidence, and unfinished work.
@@ -16,6 +22,13 @@ For the complete system contract and acceptance criteria, read [the full require
 2. For manual setup, run `defect object init` to create a plain-language object folder from `templates/object/`.
 3. Edit `object.yaml` and `dataset.yaml`. Define stable IDs, meanings and aliases in `class_catalog`; approve with `defect object review-catalog OBJECT.yaml --reviewer YOUR_ID --approve` using your operator catalog store. Increment the catalog version when it changes. `class-catalog.yaml` is a generated readable snapshot. Run `defect dataset preview DATASET.yaml --object OBJECT.yaml` to see label mappings, missing images, and conflicts. Resolve the exceptions it lists.
 4. Run `defect dataset build DATASET.yaml --object OBJECT.yaml`. It creates an immutable dataset version in GCS (or locally for testing) and prints its version ID and manifest location.
+
+For label-quality gating, add a `cleanlab` block to `dataset.yaml` and point it at a
+JSON prediction envelope produced by an out-of-sample evaluator. The envelope must
+declare the object slug, exact ordered class list, key field, and one probability
+vector per dataset sample. The default `max_issue_fraction: 0.0` requires review of
+every flagged sample; successful builds include `cleanlab/report.json` and its
+checksum in the immutable dataset.
 5. Edit the generated experiment and Vertex settings, or use `defect setup ask` with notes. The agent suggests values; the CLI validates them.
 6. Set `DEFECT_CONTROL_SERVICE_URL` to the deployed control URL, then run `defect train start projects/OBJECT/`. The platform checks the dataset, certified image digest, credentials, and estimated cost against your configured per-run limit. It returns a run ID without waiting for training.
 7. Use `defect run status RUN_ID` or `defect run list` to find the Vertex job, logs, MLflow record, evaluation, checkpoint, and any failure explanation.

@@ -1,5 +1,36 @@
 {
   "$defs": {
+    "CleanlabSpec": {
+      "additionalProperties": false,
+      "description": "External out-of-sample probabilities used for dataset quality checks.",
+      "properties": {
+        "key_field": {
+          "default": "image_uri",
+          "enum": [
+            "image_uri",
+            "sample_id"
+          ],
+          "title": "Key Field",
+          "type": "string"
+        },
+        "max_issue_fraction": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Issue Fraction",
+          "type": "number"
+        },
+        "predictions_uri": {
+          "title": "Predictions Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "predictions_uri"
+      ],
+      "title": "CleanlabSpec",
+      "type": "object"
+    },
     "LabelReviewEvidence": {
       "additionalProperties": false,
       "properties": {
@@ -152,6 +183,17 @@
   },
   "additionalProperties": false,
   "properties": {
+    "cleanlab": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CleanlabSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "label_mapping": {
       "additionalProperties": {
         "type": "string"

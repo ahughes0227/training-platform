@@ -1,5 +1,17 @@
 # Operations and deployment
 
+## Compute Engine training queue
+
+The single-VM executor is separate from the existing Vertex execution lane. Use
+[the queue operations guide](VM_TRAINING_QUEUE.md) for `defect train queue` and
+[the supervised-service templates](../infra/systemd/README.md) for the host API
+and worker. Requests can be appended during training; each subsequent attempt
+uses a fresh container from an existing certified immutable digest. The worker
+requires measured boot-disk headroom, current VM/GPU compatibility evidence,
+protected approvals, finite spending authority, and verified backup policy.
+See [implementation evidence](TRAINING_QUEUE_IMPLEMENTATION.md) for local checks
+and remaining live acceptance. These templates have not been installed on a VM.
+
 ## Configure the environment
 
 Copy `.env.example` for local work; supply values through environment variables or your secrets manager in deployed services. `infra/terraform.tfvars.example` lists the inputs for OpenTofu. Bucket names, project and region, database password, LiteLLM model, GPU type/count, and all image digests are deployment inputs. Never commit credentials, resolved `.env` files, or state files.

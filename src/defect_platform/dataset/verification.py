@@ -114,19 +114,25 @@ def _verify_dataset_version(
         _validate_shard_name(name)
         actual_sha = _hash_uri(_join(version.root_uri, name))
         _require(actual_sha == expected_sha, f"shard checksum mismatch: {name}")
+    quality_artifacts = manifest.get("quality_artifacts", {})
+    _require(isinstance(quality_artifacts, dict), "manifest quality_artifacts must be a path-to-checksum mapping")
+    for name, expected_sha in quality_artifacts.items():
+        _require(name == "cleanlab/report.json", f"unsupported quality artifact: {name}")
+        _require(_hash_uri(_join(version.root_uri, name)) == expected_sha,
+                 f"quality artifact checksum mismatch: {name}")
 
     manifest_file_digest = hashlib.sha256(manifest_bytes).hexdigest()
-    expected_content_digest = hashlib.sha256(
-        _json_bytes(
-            {
-                "manifest": manifest_file_digest,
-                "manifest_jsonl": manifest_jsonl_digest,
-                "source": source_digest,
-                "shards": shard_hashes,
-                "semantics": semantic_file_digest,
-            }
-        )
-    ).hexdigest()
+    digest_inputs = {
+        "manifest": manifest_file_digest,
+        "manifest_jsonl": manifest_jsonl_digest,
+        "source": source_digest,
+        "shards": shard_hashes,
+        "semantics": semantic_file_digest,
+    }
+    # Preserve verification of versions written before quality_artifacts existed.
+    if "quality_artifacts" in manifest:
+        digest_inputs["quality_artifacts"] = quality_artifacts
+    expected_content_digest = hashlib.sha256(_json_bytes(digest_inputs)).hexdigest()
     _require(expected_content_digest == version.sha256, "dataset content digest does not match DatasetVersion")
     _require(commit.get("sha256") == expected_content_digest, "_COMMIT.json content digest verification failed")
     return semantic
