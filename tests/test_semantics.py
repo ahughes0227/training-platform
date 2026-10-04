@@ -1,4 +1,5 @@
 import json
+from typing import Any, cast
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from defect_platform.contracts import (
     LabelSource,
     ModelSpec,
     ObjectSpec,
+    SourceKind,
 )
 from defect_platform.semantics import (
     ClassCatalog,
@@ -28,27 +30,54 @@ from defect_platform.semantics import (
 
 
 def reviewed_catalog():
-    return ClassCatalog(catalog_id="valve-defects", object_slug="valve", review_status="reviewed",
-        reviewed_by="fixture-operator", reviewed_at=datetime(2026, 9, 28, tzinfo=UTC), classes=[
-            ClassDefinition(class_id="crack", label="crack", definition="A visible material separation",
-                            aliases=["fracture"], positive_examples=["gs://examples/crack.png"],
-                            negative_examples=["gs://examples/scratch.png"]),
-            ClassDefinition(class_id="dent", label="dent", definition="An inward surface deformation")])
+    return ClassCatalog(
+        catalog_id="valve-defects",
+        object_slug="valve",
+        review_status="reviewed",
+        reviewed_by="fixture-operator",
+        reviewed_at=datetime(2026, 9, 28, tzinfo=UTC),
+        classes=[
+            ClassDefinition(
+                class_id="crack",
+                label="crack",
+                definition="A visible material separation",
+                aliases=["fracture"],
+                positive_examples=["gs://examples/crack.png"],
+                negative_examples=["gs://examples/scratch.png"],
+            ),
+            ClassDefinition(
+                class_id="dent", label="dent", definition="An inward surface deformation"
+            ),
+        ],
+    )
 
 
 def experiment():
-    return ExperimentConfig(experiment_id="e-1", object_slug="valve", dataset_version_id="ds-1",
-        runtime_id="rt-1", catalog_sha256=reviewed_catalog().sha256,
-        model=ModelSpec(weights_uri="gs://weights/dino", weights_sha256="a" * 64, image_size=32))
+    return ExperimentConfig(
+        experiment_id="e-1",
+        object_slug="valve",
+        dataset_version_id="ds-1",
+        runtime_id="rt-1",
+        catalog_sha256=reviewed_catalog().sha256,
+        model=ModelSpec(weights_uri="gs://weights/dino", weights_sha256="a" * 64, image_size=32),
+    )
 
 
 def dataset_semantics():
-    obj = ObjectSpec(slug="valve", display_name="Valve", classes=["crack", "dent"],
-                     class_catalog=reviewed_catalog())
-    spec = DatasetSpec(object_slug="valve", sources=[LabelSource(kind="csv", location="labels.csv")],
-                       output_uri="gs://datasets/valve")
-    return make_dataset_manifest(obj, spec, "ds-1", source_sha256="b" * 64,
-                                 split_assignments_sha256="c" * 64)
+    obj = ObjectSpec(
+        slug="valve",
+        display_name="Valve",
+        classes=["crack", "dent"],
+        class_catalog=reviewed_catalog(),
+    )
+    spec = DatasetSpec(
+        object_slug="valve",
+        sources=[LabelSource(kind=SourceKind.CSV, location="labels.csv")],
+        output_uri="gs://datasets/valve",
+    )
+    return make_dataset_manifest(
+        obj, spec, "ds-1", source_sha256="b" * 64, split_assignments_sha256="c" * 64
+    )
 
 
 def test_catalog_rejects_ambiguous_aliases_and_invalid_indices():
@@ -58,7 +87,7 @@ def test_catalog_rejects_ambiguous_aliases_and_invalid_indices():
         ClassCatalog.model_validate(values)
     for value in (True, -1, 2, 1.5):
         with pytest.raises(ValueError, match="outside the catalog"):
-            reviewed_catalog().decode(value)
+            reviewed_catalog().decode(cast(Any, value))
     assert reviewed_catalog().decode(reviewed_catalog().encode("FRACTURE")).class_id == "crack"
 
 
@@ -67,8 +96,12 @@ def test_manifest_round_trip_and_policy_rejection():
     value = make_training_manifest(dataset_semantics(), config, dataset_sha256="d" * 64)
     reloaded = parse_manifest(serialize_manifest(value), expected_sha256=value.sha256)
     assert_training_compatible(reloaded, config, ["crack", "dent"])
-    for update in ({"optimizer": "sgd"}, {"seed": 7}, {"learning_rate": 0.1},
-                   {"catalog_sha256": "f" * 64}):
+    for update in (
+        {"optimizer": "sgd"},
+        {"seed": 7},
+        {"learning_rate": 0.1},
+        {"catalog_sha256": "f" * 64},
+    ):
         changed = ExperimentConfig.model_validate({**config.model_dump(mode="json"), **update})
         with pytest.raises(ValueError):
             assert_training_compatible(reloaded, changed, ["crack", "dent"])
@@ -128,10 +161,18 @@ def test_catalog_review_requires_explicit_approval_and_definitions(tmp_path):
     _render_object_templates(project, obj)
     config = project / "object.yaml"
     rendered = ObjectSpec.model_validate(yaml.safe_load(config.read_text()))
+    assert rendered.class_catalog is not None
     assert rendered.class_catalog.review_status == "draft"
     assert rendered.display_name == obj.display_name
-    args = ["object", "review-catalog", str(config), "--reviewer", "operator",
-            "--store", str(tmp_path / "catalogs")]
+    args = [
+        "object",
+        "review-catalog",
+        str(config),
+        "--reviewer",
+        "operator",
+        "--store",
+        str(tmp_path / "catalogs"),
+    ]
     runner = CliRunner()
     assert runner.invoke(app, args).exit_code != 0
     assert runner.invoke(app, args + ["--approve"]).exit_code != 0
@@ -142,29 +183,45 @@ def test_catalog_review_requires_explicit_approval_and_definitions(tmp_path):
     result = runner.invoke(app, args + ["--approve"])
     assert result.exit_code == 0, result.output
     accepted = ObjectSpec.model_validate(yaml.safe_load(config.read_text())).class_catalog
-    assert DirectoryCatalogStore(tmp_path / "catalogs").get_catalog("valve", accepted.sha256) == accepted
+    assert accepted is not None
+    stored = DirectoryCatalogStore(tmp_path / "catalogs").get_catalog("valve", accepted.sha256)
+    assert stored is not None
+    assert stored == accepted
 
 
 def test_gcs_catalog_publication_uses_create_only_and_reads_exact_digest():
     class Conflict(Exception):
         code = 412
+
     class Missing(Exception):
         code = 404
+
     class Blob:
-        def __init__(self, key, objects): self.key, self.objects = key, objects
+        def __init__(self, key, objects):
+            self.key, self.objects = key, objects
+
         def upload_from_string(self, data, *, content_type, if_generation_match):
             assert if_generation_match == 0 and content_type == "application/json"
-            if self.key in self.objects: raise Conflict()
+            if self.key in self.objects:
+                raise Conflict()
             self.objects[self.key] = data
+
         def download_as_bytes(self):
-            if self.key not in self.objects: raise Missing()
+            if self.key not in self.objects:
+                raise Missing()
             return self.objects[self.key]
+
     class Storage:
-        def __init__(self): self.objects = {}
+        def __init__(self):
+            self.objects = {}
+
         def bucket(self, name):
             assert name == "catalogs"
             return self
-        def blob(self, key): return Blob(key, self.objects)
+
+        def blob(self, key):
+            return Blob(key, self.objects)
+
     client = Storage()
     store = DirectoryCatalogStore("gs://catalogs/approved", client=client)
     catalog = reviewed_catalog()

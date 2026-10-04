@@ -6,6 +6,7 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -48,7 +49,9 @@ class SqlReleaseLedger:
 
     def save(self, release: ModelRelease) -> None:
         values = (
-            release.release_id, release.object_slug, release.state,
+            release.release_id,
+            release.object_slug,
+            release.state,
             release.approved_at.isoformat() if release.approved_at else None,
             release.model_dump_json(),
         )
@@ -57,13 +60,15 @@ class SqlReleaseLedger:
                 connection.execute(
                     "INSERT INTO model_releases VALUES (%s,%s,%s,%s,%s) "
                     "ON CONFLICT(release_id) DO UPDATE SET state=excluded.state, "
-                    "approved_at=excluded.approved_at, payload=excluded.payload", values,
+                    "approved_at=excluded.approved_at, payload=excluded.payload",
+                    values,
                 )
             else:
                 connection.execute(
                     "INSERT INTO model_releases VALUES (?,?,?,?,?) "
                     "ON CONFLICT(release_id) DO UPDATE SET state=excluded.state, "
-                    "approved_at=excluded.approved_at, payload=excluded.payload", values,
+                    "approved_at=excluded.approved_at, payload=excluded.payload",
+                    values,
                 )
 
     def get(self, release_id: str) -> ModelRelease:
@@ -80,8 +85,10 @@ class SqlReleaseLedger:
         placeholder = "%s" if self.postgres else "?"
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT payload FROM model_releases WHERE object_slug=" + placeholder
-                + " AND state='promoted' ORDER BY approved_at DESC", (object_slug,)
+                "SELECT payload FROM model_releases WHERE object_slug="
+                + placeholder
+                + " AND state='promoted' ORDER BY approved_at DESC",
+                (object_slug,),
             ).fetchall()
         return [ModelRelease.model_validate_json(row[0]) for row in rows]
 
@@ -122,8 +129,10 @@ class GCSReleaseLedger:
 
     def save(self, release: ModelRelease) -> None:
         release_id = self._release_id(release.release_id)
-        name = (f"{self.prefix}/{release_id}/"
-                f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S%fZ}-{uuid4().hex}.json")
+        name = (
+            f"{self.prefix}/{release_id}/"
+            f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S%fZ}-{uuid4().hex}.json"
+        )
         self.client.bucket(self.bucket_name).blob(name).upload_from_string(
             release.model_dump_json(), content_type="application/json", if_generation_match=0
         )
@@ -134,21 +143,33 @@ class GCSReleaseLedger:
         revisions = list(self.client.list_blobs(self.bucket_name, prefix=prefix))
         if not revisions:
             raise KeyError(release_id)
-        return ModelRelease.model_validate_json(max(revisions, key=lambda item: item.name).download_as_bytes())
+        return ModelRelease.model_validate_json(
+            max(revisions, key=lambda item: item.name).download_as_bytes()
+        )
 
     def _promoted(self, object_slug: str) -> list[ModelRelease]:
-        latest: dict[str, object] = {}
+        latest: dict[str, Any] = {}
         prefix = self.prefix + "/"
         for blob in self.client.list_blobs(self.bucket_name, prefix=prefix):
-            parts = blob.name[len(prefix):].split("/", 1)
+            parts = blob.name[len(prefix) :].split("/", 1)
             if len(parts) != 2:
                 continue
             release_id = parts[0]
             if release_id not in latest or blob.name > latest[release_id].name:
                 latest[release_id] = blob
-        releases = [ModelRelease.model_validate_json(blob.download_as_bytes()) for blob in latest.values()]
-        promoted = [item for item in releases if item.object_slug == object_slug and item.state == "promoted"]
-        return sorted(promoted, key=lambda item: item.approved_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        releases = [
+            ModelRelease.model_validate_json(blob.download_as_bytes()) for blob in latest.values()
+        ]
+        promoted = [
+            item
+            for item in releases
+            if item.object_slug == object_slug and item.state == "promoted"
+        ]
+        return sorted(
+            promoted,
+            key=lambda item: item.approved_at or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
 
     def latest_promoted(self, object_slug: str) -> ModelRelease | None:
         releases = self._promoted(object_slug)

@@ -24,7 +24,12 @@ data = ["webdataset>=0.2.100,<2", "imagehash>=4.3,<5"]
 train = ["torch>=2.5,<3", "torchvision>=0.20,<1", "transformers>=4.56,<6", "scikit-learn>=1.5,<2", "numpy>=1.26,<3"]
 serve = ["ray[serve]>=2.40,<3", "fastapi>=0.115,<1", "psycopg[binary]>=3.2,<4"]
 telemetry = ["opentelemetry-api>=1.29,<2", "opentelemetry-sdk>=1.29,<2", "opentelemetry-exporter-otlp-proto-http>=1.29,<2"]
-dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+dev = [
+  "pytest>=8,<10",
+  "ruff>=0.9,<1",
+  "pyright>=1.1.390,<2",
+  "coverage[toml]>=7.6,<8",
+]
 
 [project.scripts]
 defect = "defect_platform.cli:app"
@@ -35,6 +40,38 @@ packages = ["src/defect_platform"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "integration: tests that require an external service or runtime",
+]
 
 [tool.ruff]
 line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = ["**/__pycache__", ".venv", "build", "dist"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+reportMissingTypeStubs = false
+venvPath = "."
+venv = ".venv"
+
+[tool.coverage.run]
+branch = true
+source = ["src/defect_platform"]
+parallel = true
+omit = [
+  "src/defect_platform/trainer/*",
+  "src/defect_platform/serve/ray_entrypoint.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "pragma: no cover",
+]

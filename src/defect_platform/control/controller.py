@@ -23,7 +23,8 @@ from defect_platform.contracts import (
     RunState,
     VertexJobConfig,
 )
-from defect_platform.control.store import RunStore
+from defect_platform.control.batch import plan_matrix
+from defect_platform.control.store import EventRecord, RunStore, compact_status
 from defect_platform.infrastructure_contract import InfrastructureCapabilities
 from defect_platform.semantics import SemanticManifest
 
@@ -39,11 +40,20 @@ class DatasetCatalog(Protocol):
 
 
 class VertexSubmitter(Protocol):
-    def submit(self, *, run_id: str, experiment: ExperimentConfig, dataset: DatasetVersion,
-               runtime: CertifiedRuntime, job: VertexJobConfig, output_uri: str,
-               classes: list[str], semantic_refs: dict[str, str] | None = None,
-               mlflow_run_id: str | None = None,
-               mlflow_tracking_uri: str | None = None) -> str: ...
+    def submit(
+        self,
+        *,
+        run_id: str,
+        experiment: ExperimentConfig,
+        dataset: DatasetVersion,
+        runtime: CertifiedRuntime,
+        job: VertexJobConfig,
+        output_uri: str,
+        classes: list[str],
+        semantic_refs: dict[str, str] | None = None,
+        mlflow_run_id: str | None = None,
+        mlflow_tracking_uri: str | None = None,
+    ) -> str: ...
 
 
 class WorkflowStarter(Protocol):
@@ -51,8 +61,15 @@ class WorkflowStarter(Protocol):
 
 
 class ExperimentTracker(Protocol):
-    def start(self, *, run: RunRecord, experiment: ExperimentConfig, dataset: DatasetVersion,
-              runtime: CertifiedRuntime, config: dict[str, Any]) -> str: ...
+    def start(
+        self,
+        *,
+        run: RunRecord,
+        experiment: ExperimentConfig,
+        dataset: DatasetVersion,
+        runtime: CertifiedRuntime,
+        config: dict[str, Any],
+    ) -> str: ...
     def finish(self, run: RunRecord, metrics: dict[str, float] | None = None) -> None: ...
 
 
@@ -76,13 +93,28 @@ def classify_failure(error: BaseException) -> tuple[str, str]:
 
 
 class RunController:
-    def __init__(self, *, store: RunStore, runtimes: RuntimeCatalog, datasets: DatasetCatalog,
-                 vertex: VertexSubmitter | None = None, workflows: WorkflowStarter | None = None,
-                 tracker: ExperimentTracker | None = None, catalogs: ClassCatalogStore | None = None,
-                 semantic_loader=None, capabilities: InfrastructureCapabilities | None = None,
-                 require_capabilities: bool = False, clock=lambda: datetime.now(UTC)):
+    def __init__(
+        self,
+        *,
+        store: RunStore,
+        runtimes: RuntimeCatalog,
+        datasets: DatasetCatalog,
+        vertex: VertexSubmitter | None = None,
+        workflows: WorkflowStarter | None = None,
+        tracker: ExperimentTracker | None = None,
+        catalogs: ClassCatalogStore | None = None,
+        semantic_loader=None,
+        capabilities: InfrastructureCapabilities | None = None,
+        require_capabilities: bool = False,
+        clock=lambda: datetime.now(UTC),
+    ):
         self.store, self.runtimes, self.datasets = store, runtimes, datasets
-        self.vertex, self.workflows, self.tracker, self.catalogs = vertex, workflows, tracker, catalogs
+        self.vertex, self.workflows, self.tracker, self.catalogs = (
+            vertex,
+            workflows,
+            tracker,
+            catalogs,
+        )
         self.semantic_loader, self.clock = semantic_loader, clock
         self.capabilities, self.require_capabilities = capabilities, require_capabilities
 
@@ -90,20 +122,48 @@ class RunController:
     def estimate_cost(job: VertexJobConfig) -> float:
         return round(job.max_run_hours * job.estimated_hourly_usd, 2)
 
-    def submit(self, *, experiment: ExperimentConfig, job: VertexJobConfig,
-               idempotency_key: str, runtime_override: CertifiedRuntime | None = None,
-               dataset_override: DatasetVersion | None = None,
-               classes: list[str] | None = None) -> tuple[RunRecord, bool]:
+    def _append_event(
+        self, run_id: str, event_type: str, payload: dict[str, Any], *, event_id: str | None = None
+    ) -> None:
+        if not hasattr(self.store, "append_event"):
+            return
+        last_error = None
+        for _ in range(3):
+            try:
+                self.store.append_event(run_id, event_type, payload, event_id=event_id)
+                return
+            except Exception as exc:
+                last_error = exc
+        if last_error is not None:
+            log.exception("could not append control event %s for run %s", event_type, run_id)
+            raise RuntimeError(
+                f"durable control event could not be recorded: {event_type}"
+            ) from last_error
+
+    def submit(
+        self,
+        *,
+        experiment: ExperimentConfig,
+        job: VertexJobConfig,
+        idempotency_key: str,
+        runtime_override: CertifiedRuntime | None = None,
+        dataset_override: DatasetVersion | None = None,
+        classes: list[str] | None = None,
+    ) -> tuple[RunRecord, bool]:
         if not idempotency_key or len(idempotency_key) > 200:
             raise ValueError("a non-empty idempotency key of at most 200 characters is required")
         if job.max_run_cost_usd <= 0:
             raise ValueError("a positive per-run cost cap must be configured")
         estimated = self.estimate_cost(job)
         if estimated > job.max_run_cost_usd:
-            raise ValueError(f"estimated cost ${estimated:.2f} exceeds configured run cap ${job.max_run_cost_usd:.2f}")
+            raise ValueError(
+                f"estimated cost ${estimated:.2f} exceeds configured run cap ${job.max_run_cost_usd:.2f}"
+            )
         runtime = runtime_override or self.runtimes.get_certified(experiment.runtime_id)
         if runtime is None or not runtime.certified or "@sha256:" not in runtime.image_digest:
-            raise ValueError(f"runtime {experiment.runtime_id!r} is not certified with an immutable image digest")
+            raise ValueError(
+                f"runtime {experiment.runtime_id!r} is not certified with an immutable image digest"
+            )
         dataset = dataset_override or self.datasets.get(experiment.dataset_version_id)
         if dataset is None:
             raise ValueError(f"dataset version not found: {experiment.dataset_version_id}")
@@ -121,95 +181,197 @@ class RunController:
             raise ValueError("dataset has no verified semantic manifest reference")
         if self.semantic_loader is None:
             from defect_platform.dataset import load_dataset_semantics
+
             loader = load_dataset_semantics
         else:
             loader = self.semantic_loader
         semantic_value = loader(dataset)
         semantic = SemanticManifest.model_validate(
-            semantic_value.model_dump(mode="json") if isinstance(semantic_value, SemanticManifest)
-            else semantic_value)
+            semantic_value.model_dump(mode="json")
+            if isinstance(semantic_value, SemanticManifest)
+            else semantic_value
+        )
         if semantic.kind != "dataset" or semantic.sha256 != dataset.semantic_sha256:
             raise ValueError("dataset semantic manifest is missing, unverified, or mismatched")
-        if semantic.dataset_version_id != dataset.version_id or semantic.object_slug != dataset.object_slug:
+        if (
+            semantic.dataset_version_id != dataset.version_id
+            or semantic.object_slug != dataset.object_slug
+        ):
             raise ValueError("dataset semantic identity does not match dataset version")
         catalog = self.catalogs.get_catalog(dataset.object_slug, semantic.catalog.sha256)
         if catalog is None:
             raise ValueError("matching class catalog is not present in the trusted catalog store")
-        if catalog.sha256 != semantic.catalog.sha256 or catalog.object_slug != experiment.object_slug:
-            raise ValueError("trusted class catalog fingerprint or object does not match dataset semantics")
+        if (
+            catalog.sha256 != semantic.catalog.sha256
+            or catalog.object_slug != experiment.object_slug
+        ):
+            raise ValueError(
+                "trusted class catalog fingerprint or object does not match dataset semantics"
+            )
         if catalog.review_status != "reviewed":
             raise ValueError("paid training requires an explicitly reviewed class catalog")
         canonical_classes = catalog.labels
         if classes is not None and classes != canonical_classes:
             raise ValueError("requested class order does not match trusted catalog")
-        if semantic.catalog.sha256 != catalog.sha256 or semantic.catalog.labels != canonical_classes:
+        if (
+            semantic.catalog.sha256 != catalog.sha256
+            or semantic.catalog.labels != canonical_classes
+        ):
             raise ValueError("dataset class meaning/order does not match trusted catalog")
         if experiment.catalog_sha256 and experiment.catalog_sha256 != catalog.sha256:
-            raise ValueError("experiment catalog fingerprint does not match trusted dataset catalog")
+            raise ValueError(
+                "experiment catalog fingerprint does not match trusted dataset catalog"
+            )
         if self.require_capabilities and self.capabilities is None:
-            raise ValueError("operator-pinned infrastructure capabilities are required for paid submission")
+            raise ValueError(
+                "operator-pinned infrastructure capabilities are required for paid submission"
+            )
         if self.capabilities is not None:
             if getattr(self.tracker, "tracking_uri", None) != self.capabilities.mlflow_uri:
-                raise ValueError("MLflow tracking URI differs from observed infrastructure capability")
+                raise ValueError(
+                    "MLflow tracking URI differs from observed infrastructure capability"
+                )
             self.capabilities.validate_training(job, runtime, dataset, now=self.clock())
-        semantic_refs = {"dataset_semantic_sha256": semantic.sha256,
-                         "catalog_sha256": catalog.sha256}
+        semantic_refs = {
+            "dataset_semantic_sha256": semantic.sha256,
+            "catalog_sha256": catalog.sha256,
+        }
         now = self.clock()
         run_id = str(uuid.uuid4())
         output_uri = f"gs://{job.staging_uri.removeprefix('gs://').rstrip('/')}/runs/{run_id}"
-        run = RunRecord(run_id=run_id, object_slug=experiment.object_slug,
-                        experiment_id=experiment.experiment_id,
-                        dataset_version_id=dataset.version_id, runtime_id=runtime.runtime_id,
-                        state=RunState.PENDING, created_at=now, output_uri=output_uri,
-                        catalog_sha256=catalog.sha256,
-                        dataset_semantic_sha256=semantic.sha256,
-                        runtime_image_digest=runtime.image_digest,
-                        runtime_source_commit=runtime.source_commit)
-        payload = {"idempotency_key": idempotency_key,
-                   "experiment": experiment.model_dump(mode="json"),
-                   "job": job.model_dump(mode="json"), "runtime": runtime.model_dump(mode="json"),
-                   "dataset": dataset.model_dump(mode="json"), "estimated_cost_usd": estimated,
-                   "classes": canonical_classes, "semantic": semantic.model_dump(mode="json"),
-                   "semantic_refs": semantic_refs, "output_uri": output_uri}
+        run = RunRecord(
+            run_id=run_id,
+            object_slug=experiment.object_slug,
+            experiment_id=experiment.experiment_id,
+            dataset_version_id=dataset.version_id,
+            runtime_id=runtime.runtime_id,
+            state=RunState.PENDING,
+            created_at=now,
+            output_uri=output_uri,
+            catalog_sha256=catalog.sha256,
+            dataset_semantic_sha256=semantic.sha256,
+            runtime_image_digest=runtime.image_digest,
+            runtime_source_commit=runtime.source_commit,
+        )
+        payload = {
+            "idempotency_key": idempotency_key,
+            "experiment": experiment.model_dump(mode="json"),
+            "job": job.model_dump(mode="json"),
+            "runtime": runtime.model_dump(mode="json"),
+            "dataset": dataset.model_dump(mode="json"),
+            "estimated_cost_usd": estimated,
+            "classes": canonical_classes,
+            "semantic": semantic.model_dump(mode="json"),
+            "semantic_refs": semantic_refs,
+            "output_uri": output_uri,
+        }
         if self.capabilities is not None:
             payload["infrastructure_capabilities_sha256"] = self.capabilities.sha256
         # Generated IDs and output locations must not change the fingerprint on retry.
-        fingerprint_data = {key: value for key, value in payload.items()
-                            if key not in {"output_uri", "idempotency_key"}}
-        fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True).encode()).hexdigest()
+        fingerprint_data = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"output_uri", "idempotency_key"}
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(fingerprint_data, sort_keys=True).encode()
+        ).hexdigest()
         record, created = self.store.create(run, fingerprint, payload)
         if not created:
+            self._append_event(
+                record.run_id,
+                "run.created",
+                {"state": record.state.value},
+                event_id=f"{record.run_id}:run.created",
+            )
             return record, False
+        self._append_event(
+            record.run_id,
+            "run.created",
+            {"state": record.state.value},
+            event_id=f"{record.run_id}:run.created",
+        )
         try:
+            state_event_emitted = False
             if self.tracker:
-                mlflow_run_id = self.tracker.start(run=record, experiment=experiment, dataset=dataset,
-                                                   runtime=runtime, config=payload)
+                mlflow_run_id = self.tracker.start(
+                    run=record,
+                    experiment=experiment,
+                    dataset=dataset,
+                    runtime=runtime,
+                    config=payload,
+                )
                 record = record.model_copy(update={"mlflow_run_id": mlflow_run_id})
                 self.store.update(record)
             if self.workflows:
                 # Publish run ID and submitted state before the workflow can call back.
                 record = record.model_copy(update={"state": RunState.SUBMITTED})
-                self.store.update(record)
+                state_payload = {
+                    "state": record.state.value,
+                    "vertex_job_name": record.vertex_job_name,
+                }
+                if hasattr(self.store, "update_with_event"):
+                    self.store.update_with_event(record, "run.state", state_payload)
+                else:
+                    self.store.update(record)
+                    self._append_event(record.run_id, "run.state", state_payload)
+                state_event_emitted = True
                 # Workflow execution is kicked off only after the immutable run record exists.
                 self.workflows.start(run_id=record.run_id, payload=payload)
             elif self.vertex:
-                job_name = self.vertex.submit(run_id=record.run_id, experiment=experiment,
-                                              dataset=dataset, runtime=runtime, job=job,
-                                              output_uri=output_uri, classes=canonical_classes,
-                                              semantic_refs=semantic_refs,
-                                              mlflow_run_id=record.mlflow_run_id,
-                                              mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None))
-                record = record.model_copy(update={"state": RunState.SUBMITTED,
-                                                   "vertex_job_name": job_name})
+                job_name = self.vertex.submit(
+                    run_id=record.run_id,
+                    experiment=experiment,
+                    dataset=dataset,
+                    runtime=runtime,
+                    job=job,
+                    output_uri=output_uri,
+                    classes=canonical_classes,
+                    semantic_refs=semantic_refs,
+                    mlflow_run_id=record.mlflow_run_id,
+                    mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None),
+                )
+                record = record.model_copy(
+                    update={"state": RunState.SUBMITTED, "vertex_job_name": job_name}
+                )
             else:
                 raise RuntimeError("no workflow starter or Vertex submitter is configured")
-            self.store.update(record)
+            if not state_event_emitted and hasattr(self.store, "update_with_event"):
+                self.store.update_with_event(
+                    record,
+                    "run.state",
+                    {
+                        "state": record.state.value,
+                        "vertex_job_name": record.vertex_job_name,
+                    },
+                )
+            else:
+                self.store.update(record)
+                if not state_event_emitted:
+                    self._append_event(
+                        record.run_id,
+                        "run.state",
+                        {
+                            "state": record.state.value,
+                            "vertex_job_name": record.vertex_job_name,
+                        },
+                    )
             return record, True
         except Exception as exc:
             code, message = classify_failure(exc)
-            record = record.model_copy(update={"state": RunState.FAILED, "failure_code": code,
-                                               "failure_message": message})
-            self.store.update(record)
+            record = record.model_copy(
+                update={"state": RunState.FAILED, "failure_code": code, "failure_message": message}
+            )
+            failure_payload = {
+                "state": record.state.value,
+                "failure_code": record.failure_code,
+                "failure_message": record.failure_message,
+            }
+            if hasattr(self.store, "update_with_event"):
+                self.store.update_with_event(record, "run.state", failure_payload)
+            else:
+                self.store.update(record)
+                self._append_event(record.run_id, "run.state", failure_payload)
             if self.tracker:
                 try:
                     self.tracker.finish(record)
@@ -234,46 +396,71 @@ class RunController:
         dataset = DatasetVersion.model_validate(payload["dataset"])
         runtime = CertifiedRuntime.model_validate(payload["runtime"])
         if self.require_capabilities and self.capabilities is None:
-            raise ValueError("operator-pinned infrastructure capabilities are required for paid submission")
+            raise ValueError(
+                "operator-pinned infrastructure capabilities are required for paid submission"
+            )
         if self.capabilities is not None:
             if payload.get("infrastructure_capabilities_sha256") != self.capabilities.sha256:
                 raise ValueError("stored run infrastructure capability fingerprint is invalid")
             if getattr(self.tracker, "tracking_uri", None) != self.capabilities.mlflow_uri:
-                raise ValueError("MLflow tracking URI differs from observed infrastructure capability")
+                raise ValueError(
+                    "MLflow tracking URI differs from observed infrastructure capability"
+                )
             self.capabilities.validate_training(job, runtime, dataset, now=self.clock())
         # Revalidate the exact catalog before a stored run can trigger a paid action.
         semantic_value = payload["semantic"]
         semantic = SemanticManifest.model_validate(
-            semantic_value.model_dump(mode="json") if isinstance(semantic_value, SemanticManifest)
-            else semantic_value)
+            semantic_value.model_dump(mode="json")
+            if isinstance(semantic_value, SemanticManifest)
+            else semantic_value
+        )
         refs = payload["semantic_refs"]
-        if semantic.sha256 != refs.get("dataset_semantic_sha256") or semantic.sha256 != dataset.semantic_sha256:
+        if (
+            semantic.sha256 != refs.get("dataset_semantic_sha256")
+            or semantic.sha256 != dataset.semantic_sha256
+        ):
             raise ValueError("stored dataset semantic fingerprint is invalid")
-        if (current.catalog_sha256 != refs.get("catalog_sha256")
-                or current.dataset_semantic_sha256 != semantic.sha256):
+        if (
+            current.catalog_sha256 != refs.get("catalog_sha256")
+            or current.dataset_semantic_sha256 != semantic.sha256
+        ):
             raise ValueError("run record semantic references do not match stored request")
         if self.semantic_loader is None:
             from defect_platform.dataset import load_dataset_semantics
+
             verified_now = load_dataset_semantics(dataset)
         else:
             verified_value = self.semantic_loader(dataset)
             verified_now = SemanticManifest.model_validate(
-                verified_value.model_dump(mode="json") if isinstance(verified_value, SemanticManifest)
-                else verified_value)
+                verified_value.model_dump(mode="json")
+                if isinstance(verified_value, SemanticManifest)
+                else verified_value
+            )
         if verified_now.sha256 != semantic.sha256:
             raise ValueError("dataset semantic proof changed since run admission")
         if self.catalogs is None:
             raise ValueError("trusted class catalog store is not configured")
         catalog = self.catalogs.get_catalog(dataset.object_slug, refs.get("catalog_sha256", ""))
-        if catalog is None or catalog.review_status != "reviewed" or catalog.sha256 != semantic.catalog.sha256:
+        if (
+            catalog is None
+            or catalog.review_status != "reviewed"
+            or catalog.sha256 != semantic.catalog.sha256
+        ):
             raise ValueError("stored run no longer resolves to its reviewed trusted class catalog")
         if catalog.labels != payload["classes"]:
             raise ValueError("stored run class order does not match trusted catalog")
-        name = self.vertex.submit(run_id=run_id, experiment=experiment, dataset=dataset,
-                                  runtime=runtime, job=job, output_uri=payload["output_uri"],
-                                  classes=payload["classes"], semantic_refs=refs,
-                                  mlflow_run_id=current.mlflow_run_id,
-                                  mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None))
+        name = self.vertex.submit(
+            run_id=run_id,
+            experiment=experiment,
+            dataset=dataset,
+            runtime=runtime,
+            job=job,
+            output_uri=payload["output_uri"],
+            classes=payload["classes"],
+            semantic_refs=refs,
+            mlflow_run_id=current.mlflow_run_id,
+            mlflow_tracking_uri=getattr(self.tracker, "tracking_uri", None),
+        )
         self.update_state(run_id, RunState.SUBMITTED, vertex_job_name=name)
         return name
 
@@ -286,23 +473,111 @@ class RunController:
     def list(self, object_slug: str | None = None) -> list[RunRecord]:
         return self.store.list(object_slug)
 
-    def update_state(self, run_id: str, state: RunState, *, vertex_job_name: str | None = None,
-                     failure: BaseException | None = None, logs_uri: str | None = None,
-                     failure_code: str | None = None, failure_message: str | None = None,
-                     metrics: dict[str, float] | None = None) -> RunRecord:
+    def status(self, run_id: str, *, detail: bool = False) -> dict[str, Any]:
+        """Return the durable compact projection unless detail is requested."""
+        current = self.get(run_id)
+        if not detail and hasattr(self.store, "compact"):
+            projection = self.store.compact(run_id)
+            if projection is not None:
+                return projection
+        return current.model_dump(mode="json") if detail else compact_status(current)
+
+    def append_event(
+        self, run_id: str, event_type: str, payload: dict[str, Any], *, event_id: str | None = None
+    ) -> EventRecord:
+        if not event_type or len(event_type) > 128:
+            raise ValueError("event_type must be a non-empty string of at most 128 characters")
+        if not hasattr(self.store, "append_event"):
+            raise RuntimeError("configured run store does not support durable events")
+        return self.store.append_event(run_id, event_type, payload, event_id=event_id)
+
+    def read_events(self, run_id: str, *, cursor: int = 0, limit: int = 100):
+        self.get(run_id)
+        if not hasattr(self.store, "read_events"):
+            raise RuntimeError("configured run store does not support durable events")
+        return self.store.read_events(run_id, cursor=cursor, limit=limit)
+
+    def plan_batch(
+        self,
+        *,
+        experiment: ExperimentConfig,
+        job: VertexJobConfig,
+        matrix: dict[str, list[Any]] | None = None,
+        idempotency_key: str,
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                **item,
+                "experiment": item["experiment"].model_dump(mode="json"),
+                "job": item["job"].model_dump(mode="json"),
+            }
+            for item in plan_matrix(experiment, job, matrix=matrix, idempotency_key=idempotency_key)
+        ]
+
+    def submit_batch(
+        self,
+        *,
+        experiment: ExperimentConfig,
+        job: VertexJobConfig,
+        idempotency_key: str,
+        matrix: dict[str, list[Any]] | None = None,
+        runtime_override: CertifiedRuntime | None = None,
+        dataset_override: DatasetVersion | None = None,
+        classes: list[str] | None = None,
+    ) -> list[tuple[RunRecord, bool]]:
+        results = []
+        for item in plan_matrix(experiment, job, matrix=matrix, idempotency_key=idempotency_key):
+            results.append(
+                self.submit(
+                    experiment=item["experiment"],
+                    job=item["job"],
+                    idempotency_key=item["idempotency_key"],
+                    runtime_override=runtime_override,
+                    dataset_override=dataset_override,
+                    classes=classes,
+                )
+            )
+        return results
+
+    def update_state(
+        self,
+        run_id: str,
+        state: RunState,
+        *,
+        vertex_job_name: str | None = None,
+        failure: BaseException | None = None,
+        logs_uri: str | None = None,
+        failure_code: str | None = None,
+        failure_message: str | None = None,
+        metrics: dict[str, float] | None = None,
+    ) -> RunRecord:
         current = self.get(run_id)
         allowed = {
-            RunState.PENDING: {RunState.PREPARING, RunState.SUBMITTED, RunState.FAILED, RunState.CANCELED},
+            RunState.PENDING: {
+                RunState.PREPARING,
+                RunState.SUBMITTED,
+                RunState.FAILED,
+                RunState.CANCELED,
+            },
             RunState.PREPARING: {RunState.SUBMITTED, RunState.FAILED, RunState.CANCELED},
-            RunState.SUBMITTED: {RunState.RUNNING, RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED},
+            RunState.SUBMITTED: {
+                RunState.RUNNING,
+                RunState.SUCCEEDED,
+                RunState.FAILED,
+                RunState.CANCELED,
+            },
             RunState.RUNNING: {RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED},
-            RunState.SUCCEEDED: set(), RunState.FAILED: set(), RunState.CANCELED: set(),
+            RunState.SUCCEEDED: set(),
+            RunState.FAILED: set(),
+            RunState.CANCELED: set(),
         }
         if state != current.state and state not in allowed[current.state]:
             raise ValueError(f"invalid run transition: {current.state} -> {state}")
         fields: dict[str, Any] = {"state": state}
-        if vertex_job_name is not None: fields["vertex_job_name"] = vertex_job_name
-        if logs_uri is not None: fields["logs_uri"] = logs_uri
+        if vertex_job_name is not None:
+            fields["vertex_job_name"] = vertex_job_name
+        if logs_uri is not None:
+            fields["logs_uri"] = logs_uri
         if failure is not None:
             fields["failure_code"], fields["failure_message"] = classify_failure(failure)
         elif failure_code or failure_message:
@@ -311,89 +586,175 @@ class RunController:
                 raise ValueError("failure_code must be an uppercase stable identifier")
             fields["failure_code"], fields["failure_message"] = code, message[:2000]
         updated = current.model_copy(update=fields)
-        self.store.update(updated)
+        event_payload = {
+            "state": state.value,
+            "vertex_job_name": vertex_job_name,
+            "failure_code": fields.get("failure_code"),
+            "logs_uri": logs_uri,
+            "metrics": metrics,
+        }
+        if hasattr(self.store, "update_with_event"):
+            self.store.update_with_event(updated, "run.state", event_payload)
+        else:
+            self.store.update(updated)
+            self._append_event(run_id, "run.state", event_payload)
         if state in {RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED} and self.tracker:
             transitioned = current.state != state
             try:
                 if transitioned:
                     self.tracker.finish(updated, metrics)
-                if state == RunState.SUCCEEDED and hasattr(self.tracker, "register_candidate"):
-                    self.tracker.register_candidate(updated)
+                register_candidate = getattr(self.tracker, "register_candidate", None)
+                if state == RunState.SUCCEEDED and callable(register_candidate):
+                    register_candidate(updated)
                 if current.failure_code == "MLFLOW_MODEL_REGISTRATION":
-                    updated = updated.model_copy(update={"failure_code": None, "failure_message": None})
-                    self.store.update(updated)
+                    updated = updated.model_copy(
+                        update={"failure_code": None, "failure_message": None}
+                    )
+                    if hasattr(self.store, "update_with_event"):
+                        self.store.update_with_event(
+                            updated,
+                            "run.state",
+                            {
+                                "state": updated.state.value,
+                                "failure_code": None,
+                                "failure_message": None,
+                            },
+                        )
+                    else:
+                        self.store.update(updated)
+                        self._append_event(
+                            run_id,
+                            "run.state",
+                            {
+                                "state": updated.state.value,
+                                "failure_code": None,
+                                "failure_message": None,
+                            },
+                        )
             except Exception as exc:
                 owner_code, message = classify_failure(exc)
-                code = "MLFLOW_MODEL_REGISTRATION" if state == RunState.SUCCEEDED else "MLFLOW_FINALIZATION"
-                updated = updated.model_copy(update={"failure_code": code,
-                                                     "failure_message": f"{owner_code}: {message}"})
-                self.store.update(updated)
+                code = (
+                    "MLFLOW_MODEL_REGISTRATION"
+                    if state == RunState.SUCCEEDED
+                    else "MLFLOW_FINALIZATION"
+                )
+                updated = updated.model_copy(
+                    update={"failure_code": code, "failure_message": f"{owner_code}: {message}"}
+                )
+                failure_payload = {
+                    "state": updated.state.value,
+                    "failure_code": code,
+                    "failure_message": updated.failure_message,
+                }
+                if hasattr(self.store, "update_with_event"):
+                    self.store.update_with_event(updated, "run.state", failure_payload)
+                else:
+                    self.store.update(updated)
+                    self._append_event(run_id, "run.state", failure_payload)
                 log.exception("terminal MLflow processing failed for run %s", run_id)
         return updated
 
 
 class VertexAiplatformSubmitter:
     """Create a server-side CustomJob and return its resource name immediately."""
-    def __init__(self, project: str | None = None, location: str | None = None,
-                 client_factory=None):
+
+    def __init__(
+        self, project: str | None = None, location: str | None = None, client_factory=None
+    ):
         self.project, self.location = project, location
         self.client_factory = client_factory
 
-    def submit(self, *, run_id: str, experiment: ExperimentConfig, dataset: DatasetVersion,
-               runtime: CertifiedRuntime, job: VertexJobConfig, output_uri: str,
-               classes: list[str], semantic_refs: dict[str, str] | None = None,
-               mlflow_run_id: str | None = None,
-               mlflow_tracking_uri: str | None = None) -> str:
+    def submit(
+        self,
+        *,
+        run_id: str,
+        experiment: ExperimentConfig,
+        dataset: DatasetVersion,
+        runtime: CertifiedRuntime,
+        job: VertexJobConfig,
+        output_uri: str,
+        classes: list[str],
+        semantic_refs: dict[str, str] | None = None,
+        mlflow_run_id: str | None = None,
+        mlflow_tracking_uri: str | None = None,
+    ) -> str:
         try:
             from google.cloud import aiplatform_v1
         except ImportError as exc:
-            raise RuntimeError("Vertex submission requires the optional cloud dependencies") from exc
+            raise RuntimeError(
+                "Vertex submission requires the optional cloud dependencies"
+            ) from exc
         project, location = self.project or job.project, self.location or job.region
         safe_id = re.sub(r"[^a-z0-9-]", "-", run_id.lower())[:50].strip("-")
         display_name = f"defect-{experiment.object_slug}-{safe_id}"
-        client = (self.client_factory(location) if self.client_factory else
-                  aiplatform_v1.JobServiceClient(
-                      client_options={"api_endpoint": f"{location}-aiplatform.googleapis.com"}))
+        client = (
+            self.client_factory(location)
+            if self.client_factory
+            else aiplatform_v1.JobServiceClient(
+                client_options={"api_endpoint": f"{location}-aiplatform.googleapis.com"}
+            )
+        )
         parent = f"projects/{project}/locations/{location}"
         # Recover a paid job created immediately before a process crash.
-        existing = list(client.list_custom_jobs(request={
-            "parent": parent, "filter": f'display_name="{display_name}"',
-        }))
+        existing = list(
+            client.list_custom_jobs(
+                request={
+                    "parent": parent,
+                    "filter": f'display_name="{display_name}"',
+                }
+            )
+        )
         names = {str(item.name) for item in existing if item.display_name == display_name}
         if len(names) == 1:
             return names.pop()
         if names:
-            raise RuntimeError(f"multiple Vertex jobs already exist for run {run_id}: {sorted(names)}")
+            raise RuntimeError(
+                f"multiple Vertex jobs already exist for run {run_id}: {sorted(names)}"
+            )
         request_uri = _upload_vertex_request(
-            job.staging_uri, run_id, {
+            job.staging_uri,
+            run_id,
+            {
                 "experiment": experiment.model_dump(mode="json"),
-                "dataset": dataset.model_dump(mode="json"), "classes": classes,
+                "dataset": dataset.model_dump(mode="json"),
+                "classes": classes,
                 "runtime": runtime.model_dump(mode="json"),
                 "semantic_refs": semantic_refs,
-                "output_uri": output_uri, "mlflow_run_id": mlflow_run_id,
+                "output_uri": output_uri,
+                "mlflow_run_id": mlflow_run_id,
                 "mlflow_tracking_uri": mlflow_tracking_uri,
-            }
+            },
         )
         job_spec = {
-            "worker_pool_specs": [{
-                "machine_spec": {"machine_type": job.machine_type,
-                                 "accelerator_type": job.accelerator_type,
-                                 "accelerator_count": job.accelerator_count},
-                "replica_count": 1,
-                "container_spec": {"image_uri": runtime.image_digest,
-                    "command": ["python", "-m", "defect_platform.trainer.runner"],
-                    "args": ["--request", request_uri],
-                    "env": [{"name": "DEFECT_RUN_ID", "value": run_id}]},
-            }],
+            "worker_pool_specs": [
+                {
+                    "machine_spec": {
+                        "machine_type": job.machine_type,
+                        "accelerator_type": job.accelerator_type,
+                        "accelerator_count": job.accelerator_count,
+                    },
+                    "replica_count": 1,
+                    "container_spec": {
+                        "image_uri": runtime.image_digest,
+                        "command": ["python", "-m", "defect_platform.trainer.runner"],
+                        "args": ["--request", request_uri],
+                        "env": [{"name": "DEFECT_RUN_ID", "value": run_id}],
+                    },
+                }
+            ],
             "service_account": job.service_account,
             "scheduling": {"timeout": f"{max(1, int(job.max_run_hours * 3600))}s"},
         }
         if job.network:
             job_spec["network"] = job.network
         custom = aiplatform_v1.CustomJob(
-            display_name=display_name, job_spec=job_spec,
-            labels={"defect-run-id": safe_id, "object": experiment.object_slug,
-                    "runtime": re.sub(r"[^a-z0-9_-]", "-", runtime.runtime_id.lower())[:63]},
+            display_name=display_name,
+            job_spec=job_spec,
+            labels={
+                "defect-run-id": safe_id,
+                "object": experiment.object_slug,
+                "runtime": re.sub(r"[^a-z0-9_-]", "-", runtime.runtime_id.lower())[:63],
+            },
         )
         created = client.create_custom_job(parent=parent, custom_job=custom)
         if not created.name:
@@ -409,7 +770,9 @@ def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any
     try:
         from google.cloud import storage
     except ImportError as exc:
-        raise RuntimeError("Vertex trainer request upload requires optional cloud dependencies") from exc
+        raise RuntimeError(
+            "Vertex trainer request upload requires optional cloud dependencies"
+        ) from exc
     bucket, _, key = uri[5:].partition("/")
     blob = storage.Client().bucket(bucket).blob(key)
     encoded = json.dumps(request, sort_keys=True)
@@ -419,7 +782,9 @@ def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any
         # A retry after a process restart is valid only if the immutable request is identical.
         try:
             if blob.download_as_text() != encoded:
-                raise ValueError(f"immutable trainer request already exists with different contents: {uri}") from exc
+                raise ValueError(
+                    f"immutable trainer request already exists with different contents: {uri}"
+                ) from exc
         except ValueError:
             raise
         except Exception:
@@ -429,16 +794,34 @@ def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any
 
 class MLflowTracker:
     """Lazy MLflow adapter which records immutable dataset/runtime lineage."""
-    def __init__(self, tracking_uri: str, experiment_name: str = "defect-classification",
-                 *, iam_auth: bool | None = None, token_provider=None):
+
+    def __init__(
+        self,
+        tracking_uri: str,
+        experiment_name: str = "defect-classification",
+        *,
+        iam_auth: bool | None = None,
+        token_provider=None,
+    ):
         if not tracking_uri:
             raise ValueError("MLflow tracking URI must be configured")
         self.tracking_uri, self.experiment_name = tracking_uri, experiment_name
-        self.iam_auth = iam_auth if iam_auth is not None else os.environ.get("DEFECT_MLFLOW_IAM_AUTH", "").lower() in {"1", "true", "yes"}
+        self.iam_auth = (
+            iam_auth
+            if iam_auth is not None
+            else os.environ.get("DEFECT_MLFLOW_IAM_AUTH", "").lower() in {"1", "true", "yes"}
+        )
         self.token_provider = token_provider
 
-    def start(self, *, run: RunRecord, experiment: ExperimentConfig, dataset: DatasetVersion,
-              runtime: CertifiedRuntime, config: dict[str, Any]) -> str:
+    def start(
+        self,
+        *,
+        run: RunRecord,
+        experiment: ExperimentConfig,
+        dataset: DatasetVersion,
+        runtime: CertifiedRuntime,
+        config: dict[str, Any],
+    ) -> str:
         try:
             import mlflow
         except ImportError as exc:
@@ -447,26 +830,41 @@ class MLflowTracker:
         client = mlflow.MlflowClient(tracking_uri=self.tracking_uri)
         with self._auth():
             experiment_obj = client.get_experiment_by_name(self.experiment_name)
-            experiment_id = (experiment_obj.experiment_id if experiment_obj
-                             else client.create_experiment(self.experiment_name))
-        tags = {"platform.run_id": run.run_id, "object.slug": run.object_slug,
-                "dataset.version": dataset.version_id, "dataset.sha256": dataset.sha256,
-                "runtime.id": runtime.runtime_id, "runtime.image_digest": runtime.image_digest}
+            experiment_id = (
+                experiment_obj.experiment_id
+                if experiment_obj
+                else client.create_experiment(self.experiment_name)
+            )
+        tags = {
+            "platform.run_id": run.run_id,
+            "object.slug": run.object_slug,
+            "dataset.version": dataset.version_id,
+            "dataset.sha256": dataset.sha256,
+            "runtime.id": runtime.runtime_id,
+            "runtime.image_digest": runtime.image_digest,
+        }
         if run.catalog_sha256:
             tags["class_catalog.sha256"] = run.catalog_sha256
         if run.dataset_semantic_sha256:
             tags["dataset.semantic_sha256"] = run.dataset_semantic_sha256
         with self._auth():
-            active = client.create_run(experiment_id=experiment_id, tags=tags,
-                                       run_name=run.experiment_id)
-        params = {"epochs": experiment.epochs, "batch_size": experiment.batch_size,
-                  "learning_rate": experiment.learning_rate, "output_uri": run.output_uri or ""}
+            active = client.create_run(
+                experiment_id=experiment_id, tags=tags, run_name=run.experiment_id
+            )
+        params = {
+            "epochs": experiment.epochs,
+            "batch_size": experiment.batch_size,
+            "learning_rate": experiment.learning_rate,
+            "output_uri": run.output_uri or "",
+        }
         for name, value in params.items():
-            with self._auth(): client.log_param(active.info.run_id, name, value)
+            with self._auth():
+                client.log_param(active.info.run_id, name, value)
         with tempfile.TemporaryDirectory(prefix="defect-run-config-") as tempdir:
             path = Path(tempdir) / "run-config.json"
             path.write_text(json.dumps(config, sort_keys=True, indent=2))
-            with self._auth(): client.log_artifact(active.info.run_id, str(path))
+            with self._auth():
+                client.log_artifact(active.info.run_id, str(path))
         return active.info.run_id
 
     def finish(self, run: RunRecord, metrics: dict[str, float] | None = None) -> None:
@@ -478,19 +876,31 @@ class MLflowTracker:
             client = mlflow.MlflowClient(tracking_uri=self.tracking_uri)
             if metrics:
                 for name, value in metrics.items():
-                    with self._auth(): client.log_metric(run.mlflow_run_id, name, value)
-            with self._auth(): client.set_tag(run.mlflow_run_id, "platform.state", run.state.value)
+                    with self._auth():
+                        client.log_metric(run.mlflow_run_id, name, value)
+            with self._auth():
+                client.set_tag(run.mlflow_run_id, "platform.state", run.state.value)
             if run.failure_code:
-                with self._auth(): client.set_tag(run.mlflow_run_id, "platform.failure_code", run.failure_code)
-            status = "FINISHED" if run.state == RunState.SUCCEEDED else "KILLED" if run.state == RunState.CANCELED else "FAILED"
-            with self._auth(): client.set_terminated(run.mlflow_run_id, status=status)
+                with self._auth():
+                    client.set_tag(run.mlflow_run_id, "platform.failure_code", run.failure_code)
+            status = (
+                "FINISHED"
+                if run.state == RunState.SUCCEEDED
+                else "KILLED"
+                if run.state == RunState.CANCELED
+                else "FAILED"
+            )
+            with self._auth():
+                client.set_terminated(run.mlflow_run_id, status=status)
 
     def register_candidate(self, run: RunRecord) -> str:
         """Register `model/` from the trainer MLflow run, preserving checkpoint and class map."""
         try:
             import mlflow
         except ImportError as exc:
-            raise RuntimeError("MLflow model registry requires optional cloud dependencies") from exc
+            raise RuntimeError(
+                "MLflow model registry requires optional cloud dependencies"
+            ) from exc
         if not run.mlflow_run_id:
             raise ValueError("successful run has no MLflow run id")
         model_name = f"defect-{run.object_slug}"
@@ -506,17 +916,24 @@ class MLflowTracker:
                     if getattr(exc, "error_code", None) != "RESOURCE_ALREADY_EXISTS":
                         raise
                 source_run = client.get_run(run.mlflow_run_id)
+                artifact_uri = source_run.info.artifact_uri
+                if not artifact_uri:
+                    raise RuntimeError("MLflow source run has no artifact URI")
                 version = client.create_model_version(
                     name=model_name,
-                    source=source_run.info.artifact_uri.rstrip("/") + "/model",
+                    source=artifact_uri.rstrip("/") + "/model",
                     run_id=run.mlflow_run_id,
-                    tags={"platform.run_id": run.run_id,
-                          "dataset.version": run.dataset_version_id,
-                          "runtime.id": run.runtime_id},
+                    tags={
+                        "platform.run_id": run.run_id,
+                        "dataset.version": run.dataset_version_id,
+                        "runtime.id": run.runtime_id,
+                    },
                 )
         with self._auth():
             client.set_model_version_tag(model_name, version.version, "platform.run_id", run.run_id)
-            client.set_model_version_tag(model_name, version.version, "dataset.version", run.dataset_version_id)
+            client.set_model_version_tag(
+                model_name, version.version, "dataset.version", run.dataset_version_id
+            )
             client.set_model_version_tag(model_name, version.version, "runtime.id", run.runtime_id)
         return f"models:/{model_name}/{version.version}"
 
@@ -530,16 +947,21 @@ class MLflowTracker:
             try:
                 yield
             finally:
-                if previous_token is None: os.environ.pop("MLFLOW_TRACKING_TOKEN", None)
-                else: os.environ["MLFLOW_TRACKING_TOKEN"] = previous_token
-                if previous_iam is None: os.environ.pop("DEFECT_MLFLOW_IAM_AUTH", None)
-                else: os.environ["DEFECT_MLFLOW_IAM_AUTH"] = previous_iam
+                if previous_token is None:
+                    os.environ.pop("MLFLOW_TRACKING_TOKEN", None)
+                else:
+                    os.environ["MLFLOW_TRACKING_TOKEN"] = previous_token
+                if previous_iam is None:
+                    os.environ.pop("DEFECT_MLFLOW_IAM_AUTH", None)
+                else:
+                    os.environ["DEFECT_MLFLOW_IAM_AUTH"] = previous_iam
             return
         previous = os.environ.get("DEFECT_MLFLOW_IAM_AUTH")
         if self.iam_auth:
             os.environ["DEFECT_MLFLOW_IAM_AUTH"] = "1"
         try:
             from defect_platform.mlflow_auth import mlflow_tracking_auth
+
             with mlflow_tracking_auth(self.tracking_uri):
                 yield
         finally:
@@ -551,23 +973,34 @@ class MLflowTracker:
 
 class GoogleWorkflowsStarter:
     """Starts a configured Cloud Workflow and returns immediately with its execution name."""
-    def __init__(self, *, project: str, region: str, workflow_name: str,
-                 control_service_url: str | None = None, max_polls: int = 240):
+
+    def __init__(
+        self,
+        *,
+        project: str,
+        region: str,
+        workflow_name: str,
+        control_service_url: str | None = None,
+        max_polls: int = 240,
+    ):
         if not all((project, region, workflow_name)):
             raise ValueError("GCP project, region, and workflow name are required")
         self.project, self.region, self.workflow_name = project, region, workflow_name
-        self.control_service_url, self.max_polls = (control_service_url.rstrip("/") if control_service_url else None), max_polls
+        self.control_service_url, self.max_polls = (
+            (control_service_url.rstrip("/") if control_service_url else None),
+            max_polls,
+        )
 
     def start(self, *, run_id: str, payload: dict[str, Any]) -> str:
         try:
-            from google.cloud import workflows_v1
+            from google.cloud.workflows import executions_v1
         except ImportError as exc:
             raise RuntimeError("Cloud Workflows requires optional cloud dependencies") from exc
-        client = workflows_v1.ExecutionsClient()
+        client = executions_v1.ExecutionsClient()
         parent = f"projects/{self.project}/locations/{self.region}/workflows/{self.workflow_name}"
         # The complete request is already in Cloud SQL; only the run locator
         # and bounded polling parameters belong in the workflow execution.
         args = {"run_id": run_id, "region": self.region, "max_polls": self.max_polls}
-        execution = workflows_v1.Execution(argument=json.dumps(args))
+        execution = executions_v1.Execution(argument=json.dumps(args))
         result = client.create_execution(request={"parent": parent, "execution": execution})
         return result.name

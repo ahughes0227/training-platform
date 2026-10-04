@@ -27,7 +27,9 @@ class DuplicateReport:
         return self.exact_pairs + self.near_pairs
 
 
-def find_duplicates(images: Iterable[tuple[str, bytes | Path]], *, max_hamming_distance: int = 6) -> DuplicateReport:
+def find_duplicates(
+    images: Iterable[tuple[str, bytes | Path]], *, max_hamming_distance: int = 6
+) -> DuplicateReport:
     """Compare image bytes exactly, then compare 64-bit dHashes for near copies."""
     if max_hamming_distance < 0 or max_hamming_distance > 64:
         raise ValueError("max_hamming_distance must be between 0 and 64")
@@ -51,9 +53,13 @@ def find_duplicates(images: Iterable[tuple[str, bytes | Path]], *, max_hamming_d
         except Exception as exc:
             errors[uri] = f"could not decode image for near-duplicate check: {exc}"
             continue
-        for other_uri, other_hash, other_mean in fingerprint_index.search(fingerprint, max_hamming_distance):
+        for other_uri, other_hash, other_mean in fingerprint_index.search(
+            fingerprint, max_hamming_distance
+        ):
             distance = (fingerprint ^ other_hash).bit_count()
-            color_distance = sum((left - right) ** 2 for left, right in zip(color_mean, other_mean)) ** 0.5
+            color_distance = (
+                sum((left - right) ** 2 for left, right in zip(color_mean, other_mean)) ** 0.5
+            )
             if distance <= max_hamming_distance and color_distance <= 80:
                 near.append(DuplicatePair(other_uri, uri, "near", distance))
         fingerprint_index.add(fingerprint, (uri, fingerprint, color_mean))
@@ -75,7 +81,11 @@ def _fingerprint(content: bytes) -> tuple[int, tuple[float, float, float]]:
         gray = image.convert("L").resize((9, 8))
         pixels = gray.tobytes()
         rgb = image.convert("RGB").resize((8, 8)).tobytes()
-        color_mean = tuple(sum(rgb[channel::3]) / 64 for channel in range(3))
+        color_mean = (
+            sum(rgb[0::3]) / 64,
+            sum(rgb[1::3]) / 64,
+            sum(rgb[2::3]) / 64,
+        )
     result = 0
     for row in range(8):
         for col in range(8):

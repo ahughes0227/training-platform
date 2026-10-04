@@ -1,0 +1,352 @@
+{
+  "$defs": {
+    "ExperimentMatrixRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "experiment_matrix",
+          "default": "experiment_matrix",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "ExperimentMatrixRef",
+      "type": "object"
+    },
+    "ExperimentVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "preset_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "variant_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant_id"
+      ],
+      "title": "ExperimentVariant",
+      "type": "object"
+    },
+    "OperatorProfileRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "operator_profile",
+          "default": "operator_profile",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "OperatorProfileRef",
+      "type": "object"
+    },
+    "PresetRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "preset",
+          "default": "preset",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "PresetRef",
+      "type": "object"
+    },
+    "Reference": {
+      "additionalProperties": false,
+      "description": "Content-addressed reference to an authoritative platform record.\n\nReferences intentionally carry identity and integrity separately from the\nrecord they point at.  Consumers can therefore resolve a record and verify\nits bytes before using it, while local fixtures may omit the optional URI.",
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "sha256"
+      ],
+      "title": "Reference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Finite, explicit experiment variants with shared immutable references.",
+  "properties": {
+    "base_experiment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Reference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "matrix_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Matrix Id",
+      "type": "string"
+    },
+    "matrix_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExperimentMatrixRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "object_slug": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Object Slug",
+      "type": "string"
+    },
+    "operator_profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OperatorProfileRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/ExperimentVariant"
+      },
+      "minItems": 1,
+      "title": "Variants",
+      "type": "array"
+    },
+    "version": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "matrix_id",
+    "version",
+    "object_slug",
+    "variants"
+  ],
+  "title": "ExperimentMatrix",
+  "type": "object"
+}

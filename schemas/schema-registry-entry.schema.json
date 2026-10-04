@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "model_name": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Model Name",
+      "type": "string"
+    },
+    "schema": {
+      "additionalProperties": true,
+      "title": "Schema",
+      "type": "object"
+    },
+    "schema_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Schema Id",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_id",
+    "version",
+    "model_name",
+    "schema",
+    "sha256"
+  ],
+  "title": "SchemaRegistryEntry",
+  "type": "object"
+}

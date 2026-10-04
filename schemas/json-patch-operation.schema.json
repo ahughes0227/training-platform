@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "description": "One RFC 6902 operation; values remain JSON-compatible opaque data.",
+  "properties": {
+    "from": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "From"
+    },
+    "op": {
+      "enum": [
+        "add",
+        "remove",
+        "replace",
+        "move",
+        "copy",
+        "test"
+      ],
+      "title": "Op",
+      "type": "string"
+    },
+    "path": {
+      "pattern": "^(|(?:/(?:[^~/]|~[01])*))+$$",
+      "title": "Path",
+      "type": "string"
+    },
+    "value": {
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "op",
+    "path"
+  ],
+  "title": "JsonPatchOperation",
+  "type": "object"
+}

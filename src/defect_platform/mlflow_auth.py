@@ -27,6 +27,8 @@ def mlflow_tracking_auth(tracking_uri: str) -> Iterator[None]:
         old = os.environ.get("MLFLOW_TRACKING_TOKEN")
         audience = os.getenv("DEFECT_MLFLOW_IAM_AUDIENCE", tracking_uri.rstrip("/"))
         token = id_token.fetch_id_token(google.auth.transport.requests.Request(), audience)
+        if not isinstance(token, str) or not token:
+            raise RuntimeError("Cloud Run MLflow authentication returned an empty identity token")
         os.environ["MLFLOW_TRACKING_TOKEN"] = token
         try:
             yield

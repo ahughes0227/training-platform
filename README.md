@@ -40,4 +40,8 @@ The repository stores code, templates, and small readable project configs. Datas
 
 Requires Python 3.12 or 3.13 and `uv`. For the complete local acceptance suite, install the `dev`, `train`, `data`, `cloud`, and `serve` extras: `uv sync --extra dev --extra train --extra data --extra cloud --extra serve`. Run `uv run --extra dev --extra train --extra data --extra cloud --extra serve pytest`. The Ray integration test starts local workers and a loopback HTTP listener; cloud SDK tests use local instrumentation and require no GCP credentials. Install the `agent` extra when connecting guided setup to LiteLLM.
 
+For a compact pre-commit style check, run `uv run --extra dev python scripts/check_changed.py`. It checks whitespace, Ruff's syntax/name rules, formatting, Python compilation, Pyright, and generated contract schemas when their inputs changed. Use `--base origin/main` when reviewing a branch against a remote base, or `--allow-missing-tools` when an environment has not installed the development extra. Coverage is configured for branch measurement; collect it with `uv run --extra dev coverage run -m pytest` and inspect it with `uv run --extra dev coverage report`.
+
+Install the optional property, security, dependency, and dead-code tools after syncing with `uv pip install --python .venv/bin/python -r requirements-quality.txt`, then run `python scripts/quality_checks.py --strict --require-tools`. Re-run that install after a later `uv sync`, which removes packages outside the lockfile.
+
 Cloud endpoints and credentials are intentionally unset in the template. Live deployment and acceptance remain blocked until they are supplied and verified.

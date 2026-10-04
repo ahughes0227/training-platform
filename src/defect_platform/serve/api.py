@@ -66,8 +66,7 @@ def encode_heatmap(heatmap: Any, base_image: Any) -> str | None:
         width = len(heatmap[0]) if height else 0
         if not height or not width or any(len(row) != width for row in heatmap):
             raise ValueError("invalid heatmap dimensions")
-        pixels = [max(0, min(255, round(float(value) * 255)))
-                  for row in heatmap for value in row]
+        pixels = [max(0, min(255, round(float(value) * 255))) for row in heatmap for value in row]
         low_res = Image.new("L", (width, height))
         low_res.putdata(pixels)
         activity = low_res.resize(base_image.size, Image.Resampling.BILINEAR)
@@ -89,7 +88,9 @@ class PredictionService:
         inference: Callable[[Any, bool], dict[str, Any]],
         model_name: str,
         model_version: str,
-        *, catalog: ClassCatalog, semantic_sha256: str,
+        *,
+        catalog: ClassCatalog,
+        semantic_sha256: str,
     ):
         self.inference = inference
         self.model_name = model_name
@@ -101,20 +102,28 @@ class PredictionService:
         image = decode_image(request.image_base64)
         result = self.inference(image, request.explain)
         class_name = result.get("class_name", result.get("class"))
+        if not isinstance(class_name, str):
+            raise ValueError("inference result is missing a class name")
         definition = self.catalog.decode(self.catalog.encode(class_name))
-        if (class_name != definition.label or result.get("class_id") != definition.class_id
-                or result.get("catalog_sha256") != self.catalog.sha256
-                or result.get("semantic_sha256") != self.semantic_sha256):
+        if (
+            class_name != definition.label
+            or result.get("class_id") != definition.class_id
+            or result.get("catalog_sha256") != self.catalog.sha256
+            or result.get("semantic_sha256") != self.semantic_sha256
+        ):
             raise ValueError("prediction class meaning or model semantic identity mismatch")
         return PredictResponse(
             class_name=class_name,
-            class_id=definition.class_id, catalog_sha256=self.catalog.sha256,
+            class_id=definition.class_id,
+            catalog_sha256=self.catalog.sha256,
             semantic_sha256=self.semantic_sha256,
             confidence=float(result["confidence"]),
             review_required=bool(result.get("review_required", result.get("review"))),
             model_name=self.model_name,
             model_version=self.model_version,
-            heatmap_png_base64=encode_heatmap(result.get("heatmap"), image) if request.explain else None,
+            heatmap_png_base64=encode_heatmap(result.get("heatmap"), image)
+            if request.explain
+            else None,
         )
 
 
@@ -131,13 +140,20 @@ def _load_approved_service() -> PredictionService:
     mlflow.set_tracking_uri(tracking_uri)
     with mlflow_tracking_auth(tracking_uri):
         version = MlflowClient().get_model_version(model_name, os.environ["DEFECT_MODEL_VERSION"])
-        artifact_dir = mlflow.artifacts.download_artifacts(artifact_uri=version.source)
-    bundle = load_inference_bundle(artifact_dir, device=os.getenv("DEFECT_DEVICE", "cpu"),
+        artifacts = getattr(mlflow, "artifacts", None)
+        if artifacts is None:
+            raise RuntimeError("installed MLflow does not expose artifact downloads")
+        artifact_dir = artifacts.download_artifacts(artifact_uri=version.source)
+    bundle = load_inference_bundle(
+        artifact_dir,
+        device=os.getenv("DEFECT_DEVICE", "cpu"),
         expected_semantic_sha256=os.environ["DEFECT_MODEL_SEMANTIC_SHA256"],
         expected_catalog_sha256=os.environ["DEFECT_CATALOG_SHA256"],
-        expected_bundle_sha256=os.environ["DEFECT_BUNDLE_SHA256"])
+        expected_bundle_sha256=os.environ["DEFECT_BUNDLE_SHA256"],
+    )
     from defect_platform.catalog_store import catalog_store_from_env
     from defect_platform.semantics import read_manifest
+
     catalog_store = catalog_store_from_env()
     if catalog_store is None:
         raise ValueError("serving requires the operator class catalog store")
@@ -149,8 +165,13 @@ def _load_approved_service() -> PredictionService:
     def infer(image: Any, explain: bool) -> dict[str, Any]:
         return predict_crop(bundle, image, explain=explain)
 
-    return PredictionService(infer, model_name, str(version.version),
-                             catalog=catalog, semantic_sha256=bundle.semantic_sha256)
+    return PredictionService(
+        infer,
+        model_name,
+        str(version.version),
+        catalog=catalog,
+        semantic_sha256=bundle.semantic_sha256,
+    )
 
 
 def build_ray_app(service_factory: Callable[[], PredictionService] | None = None):
@@ -167,8 +188,10 @@ def build_ray_app(service_factory: Callable[[], PredictionService] | None = None
     class DefectClassifier:
         def __init__(self):
             configure_logging()
-            bind_context(object_slug=os.getenv("DEFECT_MODEL_NAME", "").removeprefix("defect-"),
-                         release_id=os.getenv("DEFECT_RELEASE_ID", ""))
+            bind_context(
+                object_slug=os.getenv("DEFECT_MODEL_NAME", "").removeprefix("defect-"),
+                release_id=os.getenv("DEFECT_RELEASE_ID", ""),
+            )
             self.service = (service_factory or _load_approved_service)()
 
         @app.get("/health")

@@ -1,5 +1,66 @@
 {
   "$defs": {
+    "ErrorRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "error",
+          "default": "error",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "ErrorRef",
+      "type": "object"
+    },
     "RunState": {
       "enum": [
         "pending",
@@ -12,6 +73,128 @@
       ],
       "title": "RunState",
       "type": "string"
+    },
+    "StatusRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "status",
+          "default": "status",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "StatusRef",
+      "type": "object"
+    },
+    "TelemetryRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "telemetry",
+          "default": "telemetry",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "TelemetryRef",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -50,6 +233,17 @@
     "dataset_version_id": {
       "title": "Dataset Version Id",
       "type": "string"
+    },
+    "error_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "experiment_id": {
       "title": "Experiment Id",
@@ -154,6 +348,25 @@
     },
     "state": {
       "$ref": "#/$defs/RunState"
+    },
+    "status_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StatusRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "telemetry_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TelemetryRef"
+      },
+      "title": "Telemetry Refs",
+      "type": "array"
     },
     "vertex_job_name": {
       "anyOf": [

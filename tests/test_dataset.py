@@ -11,7 +11,14 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from defect_platform.contracts import DatasetSpec, LabelReviewEvidence, LabelSource, ObjectSpec, SourceKind, SplitSpec
+from defect_platform.contracts import (
+    DatasetSpec,
+    LabelReviewEvidence,
+    LabelSource,
+    ObjectSpec,
+    SourceKind,
+    SplitSpec,
+)
 from defect_platform.dataset import (
     LabelRow,
     build_dataset,
@@ -49,7 +56,7 @@ def test_csv_adapter_resolves_relative_images_and_optional_ids(tmp_path):
         writer.writeheader()
         writer.writerow({"path": "images/a.png", "type": "Crack", "batch": "b-1"})
     source = LabelSource(
-        kind="csv",
+        kind=SourceKind.CSV,
         location=str(manifest),
         image_uri_column="path",
         label_column="type",
@@ -67,7 +74,7 @@ def test_csv_adapter_resolves_relative_images_and_optional_ids(tmp_path):
 def test_csv_adapter_reports_missing_columns_and_cells(tmp_path):
     path = tmp_path / "labels.csv"
     path.write_text("image_uri\nimg.png\n", encoding="utf-8")
-    source = LabelSource(kind="csv", location=str(path))
+    source = LabelSource(kind=SourceKind.CSV, location=str(path))
     with pytest.raises(ValueError, match="lacks columns: label"):
         read_label_source(source)
 
@@ -93,7 +100,7 @@ def test_bigquery_adapter_quotes_columns_and_maps_rows():
 
     client = Client()
     source = LabelSource(
-        kind="bigquery",
+        kind=SourceKind.BIGQUERY,
         location="project-1.defects.labels",
         image_uri_column="uri",
         label_column="kind",
@@ -102,6 +109,7 @@ def test_bigquery_adapter_quotes_columns_and_maps_rows():
     rows = read_label_source(source, bq_client=client)
     assert rows[0].image_uri == "gs://images/a.png"
     assert rows[0].group_id == "lot-7"
+    assert client.sql is not None
     assert "`uri`" in client.sql
     with pytest.raises(ValueError, match="project.dataset.table"):
         read_label_source(source.model_copy(update={"location": "not-a-table"}), bq_client=client)
@@ -162,7 +170,15 @@ def test_builder_creates_webdataset_provenance_checksums_and_idempotent_version(
     for index, (color, label) in enumerate(zip(colors, labels)):
         path = tmp_path / f"image-{index}.png"
         path.write_bytes(png(color))
-        rows.append(LabelRow(str(path), label, sample_id=f"sample-{index}", source="unit.csv", row_number=index + 2))
+        rows.append(
+            LabelRow(
+                str(path),
+                label,
+                sample_id=f"sample-{index}",
+                source="unit.csv",
+                row_number=index + 2,
+            )
+        )
 
     version = build_dataset(spec, obj, rows=rows, near_duplicate_distance=0)
 
@@ -174,7 +190,10 @@ def test_builder_creates_webdataset_provenance_checksums_and_idempotent_version(
     assert manifest["version_id"] == version.version_id
     assert sum(version.sample_counts.values()) == len(rows)
     assert len(snapshot["rows"]) == len(rows)
-    assert all(hashlib.sha256((root / name).read_bytes()).hexdigest() == digest for name, digest in manifest["shards"].items())
+    assert all(
+        hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+        for name, digest in manifest["shards"].items()
+    )
     all_shards = [path for split in version.shard_uris.values() for path in split]
     assert len(all_shards) == len(rows)
     for shard in all_shards:
@@ -194,20 +213,36 @@ def test_review_evidence_is_pinned_to_dataset_version(tmp_path):
     crack.write_bytes(png((200, 20, 20)))
     dent.write_bytes(png((20, 20, 200)))
     review = LabelReviewEvidence(
-        reviewer="quality-owner", reviewed_at=datetime.now(UTC),
+        reviewer="quality-owner",
+        reviewed_at=datetime.now(UTC),
         accepted_mapping_additions={"split": "crack"},
-        preview_before_review=[{"source": "labels.csv", "row_number": 2,
-                                "image_uri": str(crack), "raw_label": "split",
-                                "suggested_class": "crack", "reason": "unmapped_label"}],
+        preview_before_review=[
+            {
+                "source": "labels.csv",
+                "row_number": 2,
+                "image_uri": str(crack),
+                "raw_label": "split",
+                "suggested_class": "crack",
+                "reason": "unmapped_label",
+            }
+        ],
     )
     spec = spec.model_copy(update={"label_review": review})
     rows = [LabelRow(str(crack), "split"), LabelRow(str(dent), "dent")]
     first = build_dataset(spec, obj, rows=rows, near_duplicate_distance=0)
-    snapshot = json.loads((tmp_path / "datasets" / first.version_id / "source-snapshot.json").read_text())
+    snapshot = json.loads(
+        (tmp_path / "datasets" / first.version_id / "source-snapshot.json").read_text()
+    )
     assert snapshot["label_review"]["reviewer"] == "quality-owner"
     verify_dataset_version(first, expected_classes=obj.classes)
-    second = build_dataset(spec.model_copy(update={"label_review": review.model_copy(update={"reviewer": "other-owner"})}),
-                           obj, rows=rows, near_duplicate_distance=0)
+    second = build_dataset(
+        spec.model_copy(
+            update={"label_review": review.model_copy(update={"reviewer": "other-owner"})}
+        ),
+        obj,
+        rows=rows,
+        near_duplicate_distance=0,
+    )
     assert second.version_id != first.version_id
 
 
@@ -268,7 +303,9 @@ def test_verify_dataset_version_accepts_complete_immutable_build(tmp_path):
         ("shard", "delete", "could not checksum"),
     ],
 )
-def test_verify_dataset_version_fails_closed_on_missing_or_corrupt_artifact(tmp_path, artifact, mutation, message):
+def test_verify_dataset_version_fails_closed_on_missing_or_corrupt_artifact(
+    tmp_path, artifact, mutation, message
+):
     spec, obj = config(tmp_path)
     crack, dent = tmp_path / "crack.png", tmp_path / "dent.png"
     crack.write_bytes(png((200, 20, 20)))

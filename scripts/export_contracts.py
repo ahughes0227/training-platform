@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
 """Export versioned JSON schemas from the authoritative Python module contracts."""
+
 import argparse
 import json
 from pathlib import Path
 
 from defect_platform.contracts import (
     CertifiedRuntime,
+    ComponentCatalog,
+    ComponentDefinition,
     DatasetSpec,
     DatasetVersion,
+    ErrorRecord,
     ExperimentConfig,
+    ExperimentMatrix,
+    JsonPatchOperation,
     ModelRelease,
     ObjectSpec,
+    OperatorProfile,
+    Preset,
     RunRecord,
+    SchemaRegistryEntry,
+    StatusRecord,
+    TelemetryEvent,
     VertexJobConfig,
 )
 from defect_platform.infrastructure_contract import InfrastructureCapabilities
@@ -19,11 +30,27 @@ from defect_platform.semantics import ClassCatalog, SemanticManifest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = {
-    "class-catalog": ClassCatalog, "object": ObjectSpec, "dataset-spec": DatasetSpec,
-    "dataset-version": DatasetVersion, "experiment": ExperimentConfig,
-    "certified-runtime": CertifiedRuntime, "vertex-job": VertexJobConfig,
-    "run": RunRecord, "model-release": ModelRelease,
-    "semantic-manifest": SemanticManifest, "infrastructure-capabilities": InfrastructureCapabilities,
+    "class-catalog": ClassCatalog,
+    "object": ObjectSpec,
+    "component-catalog": ComponentCatalog,
+    "component-definition": ComponentDefinition,
+    "preset": Preset,
+    "operator-profile": OperatorProfile,
+    "experiment-matrix": ExperimentMatrix,
+    "status": StatusRecord,
+    "error": ErrorRecord,
+    "telemetry": TelemetryEvent,
+    "json-patch-operation": JsonPatchOperation,
+    "schema-registry-entry": SchemaRegistryEntry,
+    "dataset-spec": DatasetSpec,
+    "dataset-version": DatasetVersion,
+    "experiment": ExperimentConfig,
+    "certified-runtime": CertifiedRuntime,
+    "vertex-job": VertexJobConfig,
+    "run": RunRecord,
+    "model-release": ModelRelease,
+    "semantic-manifest": SemanticManifest,
+    "infrastructure-capabilities": InfrastructureCapabilities,
 }
 
 

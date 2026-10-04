@@ -15,6 +15,11 @@
       "title": "Estimated Hourly Usd",
       "type": "number"
     },
+    "logging_profile": {
+      "default": "default",
+      "title": "Logging Profile",
+      "type": "string"
+    },
     "machine_type": {
       "title": "Machine Type",
       "type": "string"
@@ -49,9 +54,32 @@
       "title": "Region",
       "type": "string"
     },
+    "retry_limit": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retry Limit",
+      "type": "integer"
+    },
+    "runtime_settings": {
+      "additionalProperties": true,
+      "title": "Runtime Settings",
+      "type": "object"
+    },
     "service_account": {
       "title": "Service Account",
       "type": "string"
+    },
+    "serving_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Serving Profile"
     },
     "staging_uri": {
       "title": "Staging Uri",

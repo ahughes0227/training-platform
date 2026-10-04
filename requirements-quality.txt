@@ -1,0 +1,7 @@
+# Optional bug-finding tools. Keep these separate from runtime and the locked
+# application extras because some checks require an advisory-network lookup.
+hypothesis>=6.100,<7
+bandit>=1.8,<2
+pip-audit>=2.7,<3
+vulture>=2.14,<3
+deptry>=0.23,<1
