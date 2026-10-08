@@ -1,4 +1,6 @@
 """Guided command line for object setup and durable training runs."""
+# Typer uses parameter defaults to define the command-line schema.
+# ruff: noqa: B008
 
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ from defect_platform.contracts import (
     VertexJobConfig,
 )
 from defect_platform.control.client import ControlAPIClient
+from defect_platform.control.goal_commands import goal_app
 from defect_platform.control.setup import propose_setup
 from defect_platform.control.store import run_store_from_env
 from defect_platform.control.vm_queue_commands import vm_queue_app
@@ -44,6 +47,7 @@ app.add_typer(dataset_app, name="dataset")
 app.add_typer(setup_app, name="setup")
 app.add_typer(release_app, name="release")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(goal_app, name="goal")
 train_app.add_typer(vm_queue_app, name="queue")
 
 
