@@ -9,9 +9,11 @@ Train a separate DINOv3 + MLP classifier for each type of inspected object. Each
 
 ## Testing status
 
-The suite holds 240 tests, including 63 queue cases, and [CI](.github/workflows/ci.yml) runs it on every pull request: once with only the `dev` extra (226 pass, 14 skip because they need an optional extra) and once with every extra installed (all 240 pass). See [CI and delivery](docs/CI_CD.md). See [queue implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) for the remaining live VM gates. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
+The suite holds 251 tests, including 63 queue cases, and [CI](.github/workflows/ci.yml) runs it on every pull request: once with only the `dev` extra (236 pass, 15 skip because they need an optional extra) and once with every extra installed (all 251 pass). See [CI and delivery](docs/CI_CD.md). See [queue implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) for the remaining live VM gates. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
 
 ## Start here
+
+To see the whole loop work, run `defect goal demo /tmp/goal-demo`. It takes a goal and a tiny dataset to a delivered model on a CPU in seconds. See [goals](docs/GOALS.md).
 
 Read the [program feature guide](docs/FEATURES.md) for the implemented capabilities, configuration, commands, artifact locations, and current verification limits.
 

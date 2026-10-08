@@ -1,0 +1,51 @@
+# Goals: from a target to a model or a report
+
+You state what a model must achieve and when to stop trying. The platform trains a baseline and checks it against the goal. It keeps launching the next experiment until the goal is met or a stop rule fires. It ends in one of two outcomes:
+
+- **Model delivered:** the model package, plus a scorecard comparing each target with what was achieved.
+- **Goal not met:** a report covering why it stopped, the closest result, which classes fell short and what they were mistaken for, what was tried, and what would most likely reach the goal.
+
+Goals run on this machine today. Running each experiment on Vertex AI instead is the next step; the loop, the goal and the reports stay the same.
+
+## Try it
+
+The demo builds a tiny synthetic problem and runs it end to end on a CPU in a few seconds. It uses three classes of 32×32 crops and a miniature DINOv3 backbone, with no GPU and no downloads. It needs the `train` and `data` extras.
+
+```bash
+uv sync --extra train --extra data
+uv run defect goal demo /tmp/goal-demo                       # met after a couple of runs
+uv run defect goal demo /tmp/goal-demo-hard --unreachable    # two classes look identical
+```
+
+Each prints the runs and the path of `REPORT.md`.
+
+## Your own goal
+
+`defect goal start goal.yaml` takes one file:
+
+```yaml
+goal:
+  goal_id: panel-v1             # lowercase; names the runs and the goal directory
+  object_slug: panel
+  primary_metric: mcc           # or macro_f1, measured on validation data
+  min_primary: 0.8
+  min_class_recall: 0.75        # optional floor for every class
+  max_review_rate: 0.2          # optional; needs max_review_error_rate in the experiment
+  max_runs: 8                   # stop after this many runs
+  deadline: 2026-10-15T17:00:00Z  # optional
+  plateau_runs: 3               # stop when this many runs in a row don't improve by
+  min_improvement: 0.01         # ...at least this much
+  min_validation_support: 30    # fewer validation samples than this for a weak class is a data request
+dataset: dataset-version.yaml   # written by `defect dataset build`, or inline
+experiment: { ... }             # the baseline ExperimentConfig
+```
+
+Runs, the state, `scorecard.json` and `REPORT.md` go to `goals/<goal_id>/` next to the file, or to `--dir`. `defect goal status <dir>` shows progress. Running `start` again with the same file resumes an interrupted goal. A changed goal needs a new directory.
+
+## How the next experiment is chosen
+
+1. **Analysis.** The best run so far goes to the Analysis plane. A class short on validation samples, or with suspected label errors, becomes a data request, and the goal stops with it, because tuning can't fix missing evidence. Otherwise Analysis proposes class weights, focal loss or backbone fine-tuning. The proposal passes the plane handoff gate (recorded in `handoffs.sqlite`) before it runs.
+2. **Fallbacks.** If Analysis has nothing new, the runner tries one change at a time: more epochs, a lower learning rate, fine-tuning one more backbone layer, then focal loss.
+3. **Limits.** Only the hyperparameters Analysis may tune change. The dataset, class catalog, backbone weights and runtime never do. Every decision uses validation data. The test split is read once, for the delivered model.
+
+The goal stops on a met goal, the run limit, the deadline, a plateau, a data request, no admissible change left, a failed run, or a dataset with an empty split.
