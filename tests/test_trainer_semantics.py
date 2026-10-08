@@ -143,7 +143,7 @@ def test_integrity_manifest_rejects_path_traversal(tmp_path):
 def test_named_cls_members_stream_without_generic_unpickling(tmp_path):
     import io
 
-    import webdataset as wds
+    wds = pytest.importorskip("webdataset")
     from PIL import Image
 
     from defect_platform.semantics import normalize_name

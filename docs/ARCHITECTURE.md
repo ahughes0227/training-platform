@@ -19,7 +19,7 @@ flowchart LR
   K --> L[Class, confidence, review flag, diagnostic heatmap]
 ```
 
-The agent participates in setup and label-mapping suggestions only. Cloud Workflows and the control plane own job waiting, retries, state transitions, and terminal results, so no model session consumes tokens while training runs.
+Agents participate in setup, label-mapping suggestions, evaluation interpretation, and requesting the next experiment inside a goal envelope a person approved (see [TP-003](REQUIREMENTS.md#tp-003)). Cloud Workflows and the control plane own admission, job waiting, retries, state transitions, and terminal results, so no model session consumes tokens while training runs and no agent is in the execution path.
 
 ## Component and authority boundaries
 

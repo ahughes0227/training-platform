@@ -26,6 +26,9 @@ def _png(color: tuple[int, int, int]) -> bytes:
 
 
 def _install_fake_cleanlab(monkeypatch):
+    # The fake stands in for cleanlab, but the analysis itself needs numpy.
+    pytest.importorskip("numpy")
+
     def find_label_issues(labels, pred_probs, *, return_indices_ranked_by, n_jobs):
         assert return_indices_ranked_by == "self_confidence"
         assert n_jobs == 1

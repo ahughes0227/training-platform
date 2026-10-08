@@ -11,6 +11,7 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from defect_platform.catalog_store import DirectoryCatalogStore
@@ -30,9 +31,9 @@ from defect_platform.trainer.weights import artifact_sha256
 
 
 def test_approved_dataset_dinov3_bundle_and_real_ray_http(tmp_path, monkeypatch):
-    import ray
-    import torch
-    import transformers
+    ray = pytest.importorskip("ray")
+    torch = pytest.importorskip("torch")
+    transformers = pytest.importorskip("transformers")
     from ray import serve
 
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")

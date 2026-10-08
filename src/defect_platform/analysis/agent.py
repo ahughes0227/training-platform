@@ -177,7 +177,11 @@ class AnalysisAgent:
                 weights[name] = proposed
                 rationale.append(f"{name}: validation recall {recall:.3f} < "
                                  f"{policy.min_class_recall}; class weight {current} -> {proposed}")
-        update: dict[str, Any] = {"class_weights": weights}
+        update: dict[str, Any] = {}
+        if weights != parent.class_weights:
+            # The trainer requires a weight for every class, so a proposal that
+            # introduces weights fills the unchanged classes with the neutral 1.0.
+            update["class_weights"] = {name: weights.get(name, 1.0) for name in evidence.classes}
         if len(weak) >= policy.focal_after_weak_classes and parent.loss == "cross_entropy":
             update["loss"] = "focal"
             rationale.append(f"{len(weak)} weak classes; switch to focal loss "

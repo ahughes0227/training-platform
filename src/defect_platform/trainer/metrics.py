@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -56,11 +57,16 @@ def calibrate_abstention(
     probabilities: Sequence[Sequence[float]],
     labels: Sequence[int],
     max_review_error_rate: float,
-) -> dict[str, float | int]:
+) -> dict[str, float | int | bool]:
     """Choose the lowest confidence cutoff meeting the validation error limit.
 
     Review rate is the fraction abstained among all validation samples. Ties are
     handled conservatively; callers must provide validation data, never test data.
+
+    When no cutoff meets the limit, ``target_met`` is false and the threshold is
+    above every possible confidence, so serving abstains on every prediction
+    rather than accepting all of them. The caller decides what an unmet target
+    means for its goal; this function never silently reports success.
     """
     if not 0 <= max_review_error_rate < 1:
         raise ValueError("max_review_error_rate must be in [0, 1)")
@@ -74,15 +80,27 @@ def calibrate_abstention(
         reverse=True,
     )
     errors = 0
-    best = (0.0, 0, 0)
+    best: tuple[float, int, int] | None = None
     for accepted, (confidence, correct) in enumerate(ranked, start=1):
         errors += 1 - correct
         if errors / accepted <= max_review_error_rate:
             best = (confidence, accepted, errors)
+    if best is None:
+        # Strictly above any probability, so `confidence < threshold` abstains on all.
+        return {
+            "confidence_threshold": math.nextafter(1.0, 2.0),
+            "review_rate": 1.0,
+            "accepted_error_rate": 0.0,
+            "accepted_count": 0,
+            "validation_count": len(labels),
+            "target_met": False,
+        }
     threshold, count, mistakes = best
     return {
         "confidence_threshold": float(threshold),
         "review_rate": (len(labels) - count) / len(labels),
-        "accepted_error_rate": mistakes / count if count else 0.0,
+        "accepted_error_rate": mistakes / count,
+        "accepted_count": count,
         "validation_count": len(labels),
+        "target_met": True,
     }

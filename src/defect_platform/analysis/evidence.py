@@ -42,10 +42,14 @@ class SplitEvaluation(StrictModel):
 
 
 class AbstentionCalibration(StrictModel):
-    confidence_threshold: float = Field(ge=0, le=1)
+    # An unmet target reports a threshold above 1.0 so serving abstains on
+    # everything; see trainer.metrics.calibrate_abstention.
+    confidence_threshold: float = Field(ge=0)
     review_rate: float = Field(ge=0, le=1)
     accepted_error_rate: float = Field(ge=0, le=1)
     validation_count: int = Field(gt=0)
+    accepted_count: int | None = Field(default=None, ge=0)
+    target_met: bool = True
 
 
 class FlaggedCase(StrictModel):

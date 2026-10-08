@@ -17,5 +17,5 @@ job:
   staging_uri: gs://ARTIFACT_BUCKET/staging
   network: null
   max_run_hours: 0.25
-  estimated_hourly_usd: 0
+  estimated_hourly_usd: CHANGE_ME
   max_run_cost_usd: 1

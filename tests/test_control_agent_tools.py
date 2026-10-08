@@ -157,10 +157,16 @@ def test_compare_experiments_reports_differences_and_ranking(tmp_path):
 
     class Metrics:
         def metrics(self, run):
-            return {"macro_f1": 0.9 if run.experiment_id == "exp-0.0003" else 0.8}
+            return {"validation_macro_f1": 0.9 if run.experiment_id == "exp-0.0003" else 0.8,
+                    "test_macro_f1": 0.1 if run.experiment_id == "exp-0.0003" else 0.99}
 
     toolbox.metrics = Metrics()
-    result = toolbox.call("compare_experiments", {"run_ids": run_ids, "best_by": "macro_f1"})
+    result = toolbox.call("compare_experiments",
+                          {"run_ids": run_ids, "best_by": "validation_macro_f1"})
     assert set(result["differences"]) == {"learning_rate"}
     assert result["ranking"]["run_ids"] == [run_ids[1], run_ids[0]]
     assert result["runs"][0]["parameters"]["epochs"] == 10
+
+    # Ranking on the held-out split is refused even when the metric is present.
+    with pytest.raises(ToolError, match="not a validation metric"):
+        toolbox.call("compare_experiments", {"run_ids": run_ids, "best_by": "test_macro_f1"})

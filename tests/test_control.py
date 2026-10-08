@@ -16,7 +16,11 @@ from defect_platform.contracts import (
     ValidationResults,
     VertexJobConfig,
 )
-from defect_platform.control.controller import RunController, VertexAiplatformSubmitter
+from defect_platform.control.controller import (
+    GoogleWorkflowsStarter,
+    RunController,
+    VertexAiplatformSubmitter,
+)
 from defect_platform.control.store import SQLiteRunStore
 from defect_platform.dataset import LabelRow, build_dataset
 from defect_platform.semantics import ClassCatalog, ClassDefinition
@@ -85,10 +89,43 @@ class FakeWorkflow:
 
 
 class FakeVertex:
-    def __init__(self): self.calls = []
+    def __init__(self): self.calls, self.canceled = [], []
     def submit(self, **kwargs):
         self.calls.append(kwargs)
         return f"customJobs/{kwargs['run_id']}"
+    def cancel(self, job_name, *, region=None):
+        self.canceled.append((job_name, region))
+
+
+def test_cancel_halts_the_paid_job_and_a_late_success_is_still_recorded(tmp_path):
+    _runtime, experiment, _dataset, job, catalog, catalogs = fixtures(tmp_path)
+    store = SQLiteRunStore(tmp_path / "runs.sqlite")
+    vertex = FakeVertex()
+    controller = RunController(store=store, runtimes=catalog, datasets=catalog, vertex=vertex,
+                               catalogs=catalogs)
+    run, _ = controller.submit(experiment=experiment, job=job, idempotency_key="key-cancel")
+
+    canceled = controller.cancel(run.run_id, "operator stopped the trial")
+    assert canceled.state == RunState.CANCELED
+    assert vertex.canceled == [(run.vertex_job_name, job.region)]
+
+    # Cancelling again is a no-op rather than a second Vertex call.
+    assert controller.cancel(run.run_id, "again").state == RunState.CANCELED
+    assert len(vertex.canceled) == 1
+
+    # The job finished before the cancellation took effect; the watching
+    # workflow's terminal event must still be accepted.
+    reconciled = controller.update_state(run.run_id, RunState.SUCCEEDED)
+    assert reconciled.state == RunState.SUCCEEDED
+
+
+def test_workflow_polling_window_outlives_the_configured_run_hours(tmp_path):
+    _runtime, _experiment, _dataset, job, _catalog, _catalogs = fixtures(tmp_path)
+    starter = GoogleWorkflowsStarter(project="p", region="us-central1", workflow_name="w")
+    # 2 configured run hours is 120 polls at 60s, so the window must exceed that.
+    assert starter.polls_for(job) > job.max_run_hours * 3600 / starter.POLL_SECONDS
+    assert GoogleWorkflowsStarter(project="p", region="us-central1", workflow_name="w",
+                                  max_polls=7).polls_for(job) == 7
 
 
 def test_submit_persists_before_start_and_idempotent_retry_starts_once(tmp_path):
@@ -179,6 +216,7 @@ def test_vertex_adapter_waits_and_validates_gcs_handshake_result():
 
 
 def test_vertex_submission_returns_server_resource_and_recovers_retry(tmp_path, monkeypatch):
+    pytest.importorskip("google.cloud.aiplatform_v1")
     runtime, experiment, dataset, job, _, _ = fixtures(tmp_path)
     from defect_platform.control import controller as module
     uploads = []
@@ -214,6 +252,7 @@ def test_vertex_submission_returns_server_resource_and_recovers_retry(tmp_path, 
 
 
 def test_control_http_submission_and_workflow_callbacks(tmp_path):
+    pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
     from defect_platform.control.api import create_app

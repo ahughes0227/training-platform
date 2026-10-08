@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from defect_platform.trainer.metrics import calibrate_abstention, evaluate_predictions
@@ -23,6 +25,24 @@ def test_abstention_threshold_is_calibrated_from_validation():
     assert result["confidence_threshold"] == pytest.approx(.99)
     assert result["accepted_error_rate"] == 0
     assert result["review_rate"] == pytest.approx(2 / 3)
+
+
+def test_unreachable_review_target_abstains_on_everything_and_reports_it():
+    # No cutoff can hold the accepted error rate at 0 here: the most confident
+    # prediction is already wrong.
+    result = calibrate_abstention([[.9, .1], [.8, .2], [.6, .4]], [1, 1, 0], 0.0)
+    assert result["target_met"] is False
+    assert result["review_rate"] == 1
+    assert result["accepted_count"] == 0
+    # Strictly above any probability, so serving reviews every prediction.
+    assert result["confidence_threshold"] > 1
+    assert json.loads(json.dumps(result)) == result
+
+
+def test_reachable_review_target_reports_accepted_counts():
+    result = calibrate_abstention([[.99, .01], [.61, .39], [.42, .58]], [0, 1, 1], .25)
+    assert result["target_met"] is True
+    assert result["accepted_count"] == 1
 
 
 def test_certification_runs_all_gates_and_binds_exact_digest():
@@ -87,6 +107,8 @@ def test_weight_artifact_checksum_is_stable_and_enforced(tmp_path):
 
 
 def test_model_factory_refuses_unpinned_remote_fallback():
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
     from defect_platform.trainer.model import build_model
     with pytest.raises(ValueError, match="remote hub fallback is disabled"):
         build_model(2, weights_uri=None, weights_sha256="a" * 64)
@@ -114,7 +136,7 @@ def test_mlflow_logging_authenticates_and_resumes_controller_run(tmp_path, monke
         set_tracking_uri=lambda uri: events.append(("tracking-uri", uri)),
         start_run=lambda **kwargs: events.append(("start-run", kwargs)) or RunContext(),
         log_params=lambda params: events.append("params"),
-        log_metrics=lambda metrics: events.append("metrics"),
+        log_metrics=lambda metrics, step=None: events.append(("metrics", step)),
         log_artifacts=lambda path, artifact_path: events.append(("artifacts", artifact_path)),
         log_artifact=lambda path: events.append("artifact"),
     )
@@ -136,9 +158,13 @@ def test_mlflow_logging_authenticates_and_resumes_controller_run(tmp_path, monke
     (model_dir / "model.pt").write_bytes(b"checkpoint")
     result = _log_mlflow("https://mlflow.run.app", config,
                          {"validation": {"mcc": .5, "macro_f1": .6},
-                          "test": {"mcc": .4, "macro_f1": .5}},
+                          "test": {"mcc": .4, "macro_f1": .5},
+                          "history": [{"epoch": 1, "validation_mcc": .3,
+                                       "validation_macro_f1": .4}]},
                          model_dir / "model.pt", mlflow_run_id="controller-run-17")
     assert result == "controller-run-17"
+    # Validation metrics are logged for the run and per epoch; test metrics are not.
+    assert ("metrics", None) in events and ("metrics", 1) in events
     assert ("start-run", {"run_id": "controller-run-17"}) in events
     assert events.index(("auth-enter", "https://mlflow.run.app")) < events.index("run-enter")
     assert events[-1] == "auth-exit"
