@@ -50,12 +50,21 @@ StopReason = Literal["goal_met", "run_limit", "deadline", "plateau", "data_limit
 
 
 class RunExecutor(Protocol):
+    # Where runs execute, for the report, and whether that environment can
+    # produce a releasable model (a certified runtime image).
+    description: str
+    releasable: bool
+
     def run(self, experiment: ExperimentConfig, run_dir: Path) -> dict[str, Any]:
         """Train one experiment, leave its artifacts in run_dir, return evaluation.json."""
 
 
 class LocalExecutor:
     """Train in this process on the local CPU or GPU, the way a Vertex job would."""
+
+    description = "this machine"
+    # Local training uses no certified runtime image, so its models are for evaluation.
+    releasable = False
 
     def __init__(self, dataset: DatasetVersion, classes: list[str],
                  train: Callable[..., dict[str, Any]] | None = None):
@@ -84,6 +93,8 @@ class GoalRunRecord(StrictModel):
     finished_at: datetime | None = None
     error: str | None = None
     score: GoalScore | None = None
+    executed_on: str = ""
+    releasable: bool = False
 
 
 class GoalState(StrictModel):
@@ -205,7 +216,9 @@ class GoalRunner:
         run_id = f"{self.goal.goal_id}-run{len(self.state.runs) + 1:02d}"
         experiment = experiment.model_copy(update={"experiment_id": run_id})
         record = GoalRunRecord(run_id=run_id, experiment=experiment, origin=origin,
-                               rationale=rationale, status="running", started_at=self.clock())
+                               rationale=rationale, status="running", started_at=self.clock(),
+                               executed_on=self.executor.description,
+                               releasable=self.executor.releasable)
         self.state.runs.append(record)
         self._save()
         run_dir = self.run_dir(run_id)

@@ -12,6 +12,7 @@ import yaml
 from defect_platform.contracts import DatasetVersion, ExperimentConfig
 from defect_platform.control.goal import Goal
 from defect_platform.control.goal_runner import STATE_FILE, GoalRunner, GoalState, LocalExecutor
+from defect_platform.control.goal_vertex import VertexExecutor, VertexGoalConfig
 
 goal_app = typer.Typer(help="Start a goal and track it to a model or a report.", no_args_is_help=True)
 
@@ -44,15 +45,24 @@ def _summary(state: GoalState, goal_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def run_goal_file(goal_file: Path, goal_dir: Path | None = None) -> tuple[GoalState, Path]:
+def load_vertex_config(path: Path) -> VertexGoalConfig:
+    try:
+        return VertexGoalConfig.model_validate(yaml.safe_load(path.read_text()))
+    except (OSError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(f"invalid Vertex config {path}: {exc}") from exc
+
+
+def run_goal_file(goal_file: Path, goal_dir: Path | None = None,
+                  vertex: VertexGoalConfig | None = None) -> tuple[GoalState, Path]:
     from defect_platform.dataset import load_dataset_semantics
 
     goal, experiment, dataset = load_goal_file(goal_file)
     goal_dir = goal_dir or goal_file.parent / "goals" / goal.goal_id
     classes = load_dataset_semantics(dataset).catalog.labels
     try:
-        runner = GoalRunner(goal, experiment, dataset, classes, goal_dir,
-                            LocalExecutor(dataset, classes))
+        executor = (VertexExecutor(vertex, dataset, classes) if vertex
+                    else LocalExecutor(dataset, classes))
+        runner = GoalRunner(goal, experiment, dataset, classes, goal_dir, executor)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     return runner.run(), goal_dir
@@ -60,12 +70,16 @@ def run_goal_file(goal_file: Path, goal_dir: Path | None = None) -> tuple[GoalSt
 
 @goal_app.command("start")
 def goal_start(goal_file: Path = typer.Argument(..., exists=True, readable=True),
-               goal_dir: Path | None = typer.Option(None, "--dir", help="Where runs and the report go")):
-    """Run a goal on this machine until it is met or stops, then print the outcome.
+               goal_dir: Path | None = typer.Option(None, "--dir", help="Where runs and the report go"),
+               vertex: Path | None = typer.Option(None, "--vertex", exists=True, readable=True,
+                                                  help="Run each experiment on Vertex AI with this config")):
+    """Run a goal until it is met or stops, then print the outcome.
 
-    Starting again with the same goal and directory resumes it.
+    Runs train on this machine, or on Vertex AI with --vertex. Starting again
+    with the same goal and directory resumes it.
     """
-    state, goal_dir = run_goal_file(goal_file, goal_dir)
+    state, goal_dir = run_goal_file(goal_file, goal_dir,
+                                    load_vertex_config(vertex) if vertex else None)
     typer.echo(_summary(state, goal_dir))
 
 
@@ -81,11 +95,15 @@ def goal_status(goal_dir: Path = typer.Argument(..., exists=True, file_okay=Fals
 @goal_app.command("demo")
 def goal_demo(directory: Path = typer.Argument(..., help="Empty directory for the demo"),
               unreachable: bool = typer.Option(False, "--unreachable",
-                                               help="Make two classes indistinguishable")):
+                                               help="Make two classes indistinguishable"),
+              vertex: Path | None = typer.Option(None, "--vertex", exists=True, readable=True,
+                                                 help="Publish the demo to GCS and train on Vertex AI")):
     """Build a tiny CPU-sized problem and run its goal end to end."""
     from defect_platform.control.goal_demo import write_demo
 
-    goal_file = write_demo(directory, unreachable=unreachable)
+    config = load_vertex_config(vertex) if vertex else None
+    goal_file = write_demo(directory, unreachable=unreachable,
+                           gcs_prefix=f"{config.staging_uri.rstrip('/')}/demo" if config else None)
     typer.echo(f"Demo goal written to {goal_file}")
-    state, goal_dir = run_goal_file(goal_file)
+    state, goal_dir = run_goal_file(goal_file, vertex=config)
     typer.echo(_summary(state, goal_dir))

@@ -43,6 +43,9 @@ def _report(experiment: ExperimentConfig, recalls: dict[str, float], support: in
 class ScriptedTrainer:
     """Writes the artifacts a real run leaves, with metrics chosen by ``outcome``."""
 
+    description = "a scripted trainer"
+    releasable = False
+
     def __init__(self, outcome):
         self.outcome = outcome
         self.experiments: list[ExperimentConfig] = []
@@ -113,7 +116,10 @@ def test_reachable_goal_iterates_with_analysis_and_delivers_the_model(tmp_path):
     assert scorecard["outcome"] == "model_delivered"
     assert scorecard["run_id"] == "panel-run02"
     assert "test" in scorecard
-    assert "model delivered" in (goal_dir / "REPORT.md").read_text()
+    report = (goal_dir / "REPORT.md").read_text()
+    assert "model delivered" in report
+    assert "for evaluation only and cannot be staged for release" in report
+    assert scorecard["releasable"] is False
     # The Analysis proposal went through the handoff gate and was recorded.
     assert (goal_dir / "handoffs.sqlite").exists()
 

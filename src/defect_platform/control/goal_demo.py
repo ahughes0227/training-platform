@@ -63,8 +63,13 @@ def _write_backbone(directory: Path, seed: int) -> tuple[str, str]:
     return str(directory), artifact_sha256(directory)
 
 
-def write_demo(directory: str | Path, *, unreachable: bool = False, seed: int = 7) -> Path:
-    """Write the demo dataset, backbone and goal file; return the goal file path."""
+def write_demo(directory: str | Path, *, unreachable: bool = False, seed: int = 7,
+               gcs_prefix: str | None = None) -> Path:
+    """Write the demo dataset, backbone and goal file; return the goal file path.
+
+    With ``gcs_prefix`` the dataset is published to GCS and the backbone is
+    uploaded there, so Vertex AI jobs can read both.
+    """
     from ..dataset import build_dataset
 
     root = Path(directory).resolve()
@@ -80,11 +85,18 @@ def write_demo(directory: str | Path, *, unreachable: bool = False, seed: int = 
     dataset = build_dataset(
         DatasetSpec(object_slug="demo-crops",
                     sources=[LabelSource(kind="csv", location=str(root / "labels.csv"))],
-                    output_uri=str(root / "datasets")),
+                    output_uri=f"{gcs_prefix.rstrip('/')}/datasets" if gcs_prefix
+                    else str(root / "datasets")),
         object_spec, rows=rows, near_duplicate_distance=0)
     (root / "dataset-version.yaml").write_text(
         yaml.safe_dump(dataset.model_dump(mode="json"), sort_keys=False))
     weights_uri, weights_sha256 = _write_backbone(root / "backbone", seed)
+    if gcs_prefix:
+        from .goal_vertex import upload_directory
+
+        # Content-addressed, so a rerun never replaces weights an earlier run used.
+        weights_uri = f"{gcs_prefix.rstrip('/')}/backbones/{weights_sha256[:16]}"
+        upload_directory(root / "backbone", weights_uri)
     experiment = ExperimentConfig(
         experiment_id="baseline", object_slug="demo-crops", dataset_version_id=dataset.version_id,
         runtime_id="local", epochs=3, batch_size=16, learning_rate=1e-3, seed=seed,
