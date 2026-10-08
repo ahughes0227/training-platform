@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "training-platform": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "defect_platform.control.mcp_server"]
+    }
+  }
+}
