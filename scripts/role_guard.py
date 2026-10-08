@@ -12,7 +12,6 @@ import sys
 from pathlib import PurePosixPath
 from typing import Any
 
-
 OWNED_PREFIXES = {
     "trainer": ("src/defect_platform/trainer/", "tests/test_trainer"),
     "runtime": ("infra/docker/", "Dockerfile", "requirements-runtime", "tests/test_runtime"),
@@ -21,12 +20,23 @@ OWNED_PREFIXES = {
     "analysis": ("src/defect_platform/analysis/", "tests/test_analysis"),
 }
 
+# Every CLI path that submits a paid run, not only `defect run submit`.
+SUBMIT = r"\bdefect\s+(?:run\s+submit|train\s+(?:start|guided|queue))\b"
+BUILD_IMAGE = r"\bdocker\s+(?:image\s+)?build\b"
+PUSH_IMAGE = r"\bdocker\s+(?:image\s+)?push\b"
+BUILD_OR_PUSH = r"\bdocker\s+(?:image\s+)?(?:build|push)\b"
+CERTIFY = r"\bdefect\s+runtime\s+certify\b"
+VERTEX_CREATE = r"\bgcloud\s+ai\s+custom-jobs\s+create\b"
+CLOUD_BUILD = r"\bgcloud\s+builds\s+submit\b"
+
 DENIED_COMMANDS = {
-    "trainer": [r"\bdocker\s+(?:image\s+)?(?:build|push)\b", r"\bgcloud\s+ai\s+custom-jobs\s+create\b", r"\bdefect\s+(?:run|runtime)\s+(?:submit|certify)\b"],
-    "runtime": [r"\bdocker\s+(?:image\s+)?push\b", r"\bgcloud\s+ai\s+custom-jobs\s+create\b", r"\bdefect\s+run\s+submit\b", r"\bdefect\s+runtime\s+certify\b"],
-    "certifier": [r"\bdocker\s+(?:image\s+)?build\b", r"\bdefect\s+run\s+submit\b"],
-    "experiment": [r"\bdocker\s+(?:image\s+)?(?:build|push)\b", r"\bgcloud\s+builds\s+submit\b", r"\bdefect\s+runtime\s+certify\b"],
-    "analysis": [r"\bdocker\s+(?:image\s+)?(?:build|push)\b", r"\bgcloud\s+(?:builds\s+submit|ai\s+custom-jobs\s+create)\b", r"\bdefect\s+(?:run\s+submit|runtime\s+certify|dataset\s+build|release\s+(?:stage|promote|rollback))\b"],
+    "trainer": [BUILD_OR_PUSH, VERTEX_CREATE, SUBMIT, CERTIFY],
+    "runtime": [PUSH_IMAGE, VERTEX_CREATE, SUBMIT, CERTIFY],
+    "certifier": [BUILD_IMAGE, SUBMIT],
+    "experiment": [BUILD_OR_PUSH, CLOUD_BUILD, CERTIFY],
+    "analysis": [BUILD_OR_PUSH, CLOUD_BUILD, VERTEX_CREATE, SUBMIT,
+                 CERTIFY, r"\bdefect\s+dataset\s+build\b",
+                 r"\bdefect\s+release\s+(?:stage|promote|rollback)\b"],
 }
 
 
@@ -38,9 +48,27 @@ def _normalize(path: str) -> str:
     return str(PurePosixPath(normalized)).removeprefix("./")
 
 
+# Mutating tools an agent reaches a boundary through, by harness. Claude Code
+# names its write tools' argument file_path and exposes platform actions as
+# mcp__<server>__<tool>, neither of which the editor key names cover.
+MUTATING_TOOL_WORDS = ("edit", "write", "create_file", "apply_patch", "delete", "notebookedit")
+DENIED_TOOLS = {
+    "trainer": ("launch_run", "create_project"),
+    "runtime": ("launch_run", "create_project"),
+    "certifier": ("launch_run", "create_project"),
+    "experiment": (),
+    "analysis": ("launch_run", "create_project"),
+}
+
+
+def _tool_action(tool_name: str) -> str:
+    """The bare action of an MCP tool name, e.g. mcp__training-platform__launch_run."""
+    return tool_name.rsplit("__", 1)[-1] if tool_name.startswith("mcp__") else tool_name
+
+
 def _file_paths(tool_input: dict[str, Any]) -> list[str]:
     paths = []
-    for key in ("filePath", "path", "target", "uri"):
+    for key in ("filePath", "file_path", "path", "target", "uri", "notebook_path"):
         value = tool_input.get(key)
         if isinstance(value, str) and not value.startswith(("http:", "https:")):
             paths.append(_normalize(value))
@@ -64,9 +92,12 @@ def policy_decision(role: str, payload: dict[str, Any]) -> str | None:
         for pattern in DENIED_COMMANDS[role]:
             if re.search(pattern, command, re.IGNORECASE):
                 return f"{role} role cannot run this cross-layer command"
-    if any(word in tool_name for word in ("edit", "write", "create_file", "apply_patch", "delete")):
+    action = _tool_action(tool_name)
+    if action in DENIED_TOOLS[role]:
+        return f"{role} role cannot use the {action} platform tool"
+    if any(word in tool_name for word in MUTATING_TOOL_WORDS):
         for path in _file_paths(tool_input):
-            if path.startswith("../") or path.startswith("/"):
+            if path.startswith(("../", "/")):
                 return "file write escapes the repository"
             if not any(path.startswith(prefix) for prefix in OWNED_PREFIXES[role]):
                 return f"{role} role does not own {path}"

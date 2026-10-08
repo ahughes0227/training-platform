@@ -81,7 +81,7 @@ def test_weak_class_yields_gated_experiment_proposal(tmp_path):
     assert envelope.evidence_fingerprints == (evidence.report_sha256,)
 
     proposed = ExperimentConfig.model_validate(envelope.payload["experiment"])
-    assert proposed.class_weights == {"scratch": 1.6}
+    assert proposed.class_weights == {"ok": 1.0, "scratch": 1.6, "dent": 1.0}
     assert proposed.loss == "cross_entropy"
     assert proposed.experiment_id.startswith("exp-1-a") and proposed.experiment_id != "exp-1"
     assert (proposed.dataset_version_id, proposed.runtime_id) == ("ds-v1", "rt-1")
@@ -107,7 +107,7 @@ def test_several_weak_classes_switch_to_focal_and_weights_are_capped():
     proposed = ExperimentConfig.model_validate(
         agent().analyze(evidence).handoff.payload["experiment"])
     assert proposed.loss == "focal"
-    assert proposed.class_weights == {"scratch": 10.0, "dent": 1.3333}
+    assert proposed.class_weights == {"ok": 1.0, "scratch": 10.0, "dent": 1.3333}
 
 
 def test_high_review_rate_unfreezes_one_more_block_until_cap():

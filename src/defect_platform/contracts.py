@@ -166,7 +166,8 @@ class VertexJobConfig(StrictModel):
     staging_uri: str
     network: str | None = None
     max_run_hours: float = Field(gt=0)
-    estimated_hourly_usd: float = Field(ge=0)
+    # A zero estimate would make every cost cap pass, so a real price is required.
+    estimated_hourly_usd: float = Field(gt=0)
     max_run_cost_usd: float = Field(gt=0)
 
 

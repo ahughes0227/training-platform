@@ -209,8 +209,8 @@ class TrialSubmitter(Protocol):
 class RunControllerSubmitter:
     """Launches trials through ``RunController.submit`` so every run guardrail applies.
 
-    ``stop`` records the early stop as a cancellation in the run store; halting
-    the external job is left to the workflow that owns it.
+    ``stop`` cancels the external job through the controller, so an early stop
+    actually ends the spend instead of only relabelling the run.
     """
 
     def __init__(self, controller: RunController, job: VertexJobConfig):
@@ -228,11 +228,7 @@ class RunControllerSubmitter:
         return record.run_id
 
     def stop(self, run_id: str, reason: str) -> None:
-        if self.controller.get(run_id).state in {RunState.SUCCEEDED, RunState.FAILED,
-                                                 RunState.CANCELED}:
-            return
-        self.controller.update_state(run_id, RunState.CANCELED, failure_code="EARLY_STOPPED",
-                                     failure_message=reason)
+        self.controller.cancel(run_id, f"EARLY_STOPPED: {reason}")
 
 
 class ExperimentSearch:

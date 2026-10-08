@@ -1,0 +1,139 @@
+# Continuous integration: every pull request and every push to main.
+#
+# Nothing here authenticates to Google Cloud, builds the trainer image, or
+# submits training. Trainer images go through runtime certification on a GPU
+# host (docs/OPERATIONS.md), never through CI.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.12.3"
+  UV_FROZEN: "1"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      # main carries pre-existing ruff findings, so the gate is on the Python
+      # files a change touches. Drop the diff filter once main is clean.
+      - name: Ruff on changed Python files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD -- '*.py')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed Python files."
+            exit 0
+          fi
+          printf 'Linting %s\n' "${files[@]}"
+          uv run --extra dev ruff check --output-format=github "${files[@]}"
+      - name: Ruff report for the whole repository (informational)
+        continue-on-error: true
+        run: uv run --extra dev ruff check --output-format=concise --exit-zero --statistics .
+      - name: Check workflow files
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+
+  test-core:
+    name: Tests (core, Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: Run tests without optional extras
+        run: uv run --extra dev pytest -q -ra
+
+  test-full:
+    name: Tests (all extras)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      # The train extra installs PyTorch with CUDA wheels (~6 GB installed).
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: false
+      - name: Install every extra from the lockfile
+        run: uv sync --extra dev --extra train --extra data --extra cloud --extra serve
+      - name: Run the full suite, including Ray, DINOv3, MLflow and Cleanlab cases
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: uv run --extra dev --extra train --extra data --extra cloud --extra serve pytest -q -ra
+
+  infra:
+    name: Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.10.6"
+      - name: Format
+        run: tofu fmt -check -recursive -diff infra
+      - name: Validate (no backend, no credentials)
+        run: |
+          tofu -chdir=infra init -backend=false -input=false
+          tofu -chdir=infra validate
+
+  images:
+    name: Service images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [control, mlflow]
+    steps:
+      - uses: actions/checkout@v4
+      # A packaging check only: nothing is pushed. CD builds from the
+      # digest-pinned base in vars.PYTHON_BASE_IMAGE; this falls back to the
+      # public slim image so forks and unconfigured repos still get the check.
+      - name: Build ${{ matrix.image }} without pushing
+        env:
+          BASE: ${{ vars.PYTHON_BASE_IMAGE || 'python:3.12-slim' }}
+        run: |
+          docker build \
+            --build-arg "PYTHON_BASE_IMAGE=$BASE" \
+            -f "infra/docker/${{ matrix.image }}.Dockerfile" \
+            -t "defect-${{ matrix.image }}:ci" .

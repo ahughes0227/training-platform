@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import tempfile
@@ -44,6 +45,7 @@ class VertexSubmitter(Protocol):
                classes: list[str], semantic_refs: dict[str, str] | None = None,
                mlflow_run_id: str | None = None,
                mlflow_tracking_uri: str | None = None) -> str: ...
+    def cancel(self, job_name: str, *, region: str | None = None) -> None: ...
 
 
 class WorkflowStarter(Protocol):
@@ -277,6 +279,25 @@ class RunController:
         self.update_state(run_id, RunState.SUBMITTED, vertex_job_name=name)
         return name
 
+    def cancel(self, run_id: str, reason: str) -> RunRecord:
+        """Stop the external job, then record the cancellation.
+
+        The external job is halted first: recording a cancellation while the
+        job keeps running would understate spend. A run already in a terminal
+        state is returned unchanged.
+        """
+        current = self.get(run_id)
+        if current.state in {RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED}:
+            return current
+        if current.vertex_job_name:
+            if self.vertex is None or not hasattr(self.vertex, "cancel"):
+                raise RuntimeError("no Vertex adapter is configured to cancel a submitted job")
+            payload = self.store.get_payload(run_id) or {}
+            region = (payload.get("job") or {}).get("region")
+            self.vertex.cancel(current.vertex_job_name, region=region)
+        return self.update_state(run_id, RunState.CANCELED, failure_code="RUN_CANCELED",
+                                 failure_message=reason)
+
     def get(self, run_id: str) -> RunRecord:
         record = self.store.get(run_id)
         if record is None:
@@ -296,7 +317,11 @@ class RunController:
             RunState.PREPARING: {RunState.SUBMITTED, RunState.FAILED, RunState.CANCELED},
             RunState.SUBMITTED: {RunState.RUNNING, RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED},
             RunState.RUNNING: {RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELED},
-            RunState.SUCCEEDED: set(), RunState.FAILED: set(), RunState.CANCELED: set(),
+            RunState.SUCCEEDED: set(), RunState.FAILED: set(),
+            # A job can finish before its cancellation takes effect. Accepting the
+            # real outcome keeps the record true and lets the watching workflow
+            # report its terminal state instead of erroring on a rejected event.
+            RunState.CANCELED: {RunState.SUCCEEDED, RunState.FAILED},
         }
         if state != current.state and state not in allowed[current.state]:
             raise ValueError(f"invalid run transition: {current.state} -> {state}")
@@ -400,6 +425,20 @@ class VertexAiplatformSubmitter:
             raise RuntimeError("Vertex created a CustomJob without returning its resource name")
         return str(created.name)
 
+    def cancel(self, job_name: str, *, region: str | None = None) -> None:
+        """Ask Vertex to stop a running CustomJob so it stops accruing cost."""
+        try:
+            from google.cloud import aiplatform_v1
+        except ImportError as exc:
+            raise RuntimeError("Vertex cancellation requires the optional cloud dependencies") from exc
+        location = self.location or region
+        if not location:
+            raise ValueError("a region is required to cancel a Vertex CustomJob")
+        client = (self.client_factory(location) if self.client_factory else
+                  aiplatform_v1.JobServiceClient(
+                      client_options={"api_endpoint": f"{location}-aiplatform.googleapis.com"}))
+        client.cancel_custom_job(request={"name": job_name})
+
 
 def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any]) -> str:
     """Persist the exact trainer request before CustomJob submission."""
@@ -415,14 +454,14 @@ def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any
     encoded = json.dumps(request, sort_keys=True)
     try:
         blob.upload_from_string(encoded, content_type="application/json", if_generation_match=0)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any upload error is re-raised unless the request matches
         # A retry after a process restart is valid only if the immutable request is identical.
         try:
             if blob.download_as_text() != encoded:
                 raise ValueError(f"immutable trainer request already exists with different contents: {uri}") from exc
         except ValueError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreadable existing object surfaces the upload error
             raise exc
     return uri
 
@@ -551,12 +590,25 @@ class MLflowTracker:
 
 class GoogleWorkflowsStarter:
     """Starts a configured Cloud Workflow and returns immediately with its execution name."""
+    # Extra polls beyond the job's own timeout, so the workflow outlives the job
+    # it is watching and records a terminal state instead of a false timeout.
+    POLL_SECONDS = 60
+    POLL_GRACE = 10
+
     def __init__(self, *, project: str, region: str, workflow_name: str,
-                 control_service_url: str | None = None, max_polls: int = 240):
+                 control_service_url: str | None = None, max_polls: int | None = None):
         if not all((project, region, workflow_name)):
             raise ValueError("GCP project, region, and workflow name are required")
+        if max_polls is not None and max_polls <= 0:
+            raise ValueError("max_polls must be positive when it is configured")
         self.project, self.region, self.workflow_name = project, region, workflow_name
         self.control_service_url, self.max_polls = (control_service_url.rstrip("/") if control_service_url else None), max_polls
+
+    def polls_for(self, job: VertexJobConfig) -> int:
+        """Poll past the Vertex timeout derived from ``max_run_hours``."""
+        if self.max_polls is not None:
+            return self.max_polls
+        return math.ceil(job.max_run_hours * 3600 / self.POLL_SECONDS) + self.POLL_GRACE
 
     def start(self, *, run_id: str, payload: dict[str, Any]) -> str:
         try:
@@ -567,7 +619,8 @@ class GoogleWorkflowsStarter:
         parent = f"projects/{self.project}/locations/{self.region}/workflows/{self.workflow_name}"
         # The complete request is already in Cloud SQL; only the run locator
         # and bounded polling parameters belong in the workflow execution.
-        args = {"run_id": run_id, "region": self.region, "max_polls": self.max_polls}
+        job = VertexJobConfig.model_validate(payload["job"])
+        args = {"run_id": run_id, "region": self.region, "max_polls": self.polls_for(job)}
         execution = workflows_v1.Execution(argument=json.dumps(args))
         result = client.create_execution(request={"parent": parent, "execution": execution})
         return result.name

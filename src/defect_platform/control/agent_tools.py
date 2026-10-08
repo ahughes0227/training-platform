@@ -190,7 +190,10 @@ class TrackRunsArgs(ToolArgs):
 
 class CompareArgs(ToolArgs):
     run_ids: list[str] = Field(min_length=2, max_length=10)
-    best_by: str | None = Field(default=None, description="Metric name used to rank runs.")
+    best_by: str | None = Field(
+        default=None,
+        description="Validation metric used to rank runs, e.g. validation_mcc. Held-out "
+                    "test metrics cannot be used for selection.")
     goal: Literal["max", "min"] = "max"
 
 
@@ -436,6 +439,12 @@ class AgentToolbox:
                 differences[field] = {row["run_id"]: row[field] for row in rows}
         result: dict[str, Any] = {"runs": rows, "differences": differences}
         if args.best_by:
+            # Selecting on the held-out split would make every reported number
+            # optimistic, so ranking is restricted to validation metrics.
+            if not args.best_by.startswith("validation"):
+                raise ToolError(
+                    f"{args.best_by!r} is not a validation metric; ranking runs on held-out "
+                    "test results is not allowed. Use a validation_* metric.")
             scored = [row for row in rows if row["metrics"] and args.best_by in row["metrics"]]
             scored.sort(key=lambda row: row["metrics"][args.best_by], reverse=args.goal == "max")
             result["ranking"] = {"metric": args.best_by, "goal": args.goal,

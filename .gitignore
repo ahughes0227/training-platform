@@ -11,3 +11,11 @@ mlruns/
 dist/
 build/
 *.egg-info/
+
+# OpenTofu working state; CD writes backend_override.tf for remote state
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/backend_override.tf
+infra/terraform.tfvars

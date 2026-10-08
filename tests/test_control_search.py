@@ -277,7 +277,10 @@ def test_run_controller_submitter_applies_run_guardrails_and_records_early_stop(
     search.report(a.trial_id, 1, score(0.6))
     search.report(b.trial_id, 1, score(0.1))
     stopped = controller.get(b.run_id)
-    assert stopped.state == RunState.CANCELED and stopped.failure_code == "EARLY_STOPPED"
+    assert stopped.state == RunState.CANCELED and stopped.failure_code == "RUN_CANCELED"
+    assert "EARLY_STOPPED" in stopped.failure_message
+    # The early stop must halt the paid job, not only relabel the run.
+    assert vertex.canceled == [(stopped.vertex_job_name, job.region)]
 
     over_cap = RunControllerSubmitter(controller, job.model_copy(update={"max_run_cost_usd": 19}))
     rejected = ExperimentSearch(

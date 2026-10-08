@@ -232,9 +232,14 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
     threshold = None
     if config.max_review_error_rate is not None:
         threshold = calibrate_abstention(val_probs, val_y, config.max_review_error_rate)
-        # A configured maximum error target that validation cannot satisfy blocks readiness.
-        if threshold["accepted_error_rate"] > config.max_review_error_rate:
-            raise ValueError("validation data cannot meet configured review error rate")
+        # A target validation cannot satisfy is reported as evidence, not an
+        # exception: the caller needs the trained model and its metrics to
+        # explain why the goal was not met. Serving abstains on everything
+        # until the threshold is reviewed, so no uncalibrated prediction ships.
+        if not threshold["target_met"]:
+            logger.warning("abstention_target_unmet", extra={
+                "stage": "abstention_target_unmet",
+                "max_review_error_rate": config.max_review_error_rate})
     output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
     model_dir = output / "model"
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -282,8 +287,8 @@ def _train_experiment_impl(config: ExperimentConfig, dataset_root: str | Path,
                                               checkpoint_path, mlflow_run_id)
         (output / "evaluation.json").write_text(json.dumps(report, indent=2))
     logger.info("training_completed", extra={"stage": "training_completed",
-                 "best_epoch": best_epoch, "test_mcc": test_eval.mcc,
-                 "test_macro_f1": test_eval.macro_f1})
+                 "best_epoch": best_epoch, "validation_mcc": val_eval.mcc,
+                 "validation_macro_f1": val_eval.macro_f1})
     return report
 
 
@@ -334,10 +339,17 @@ def _log_mlflow(tracking_uri: str, config: ExperimentConfig, report: dict, check
                                "focal_gamma": config.focal_gamma,
                                "horizontal_flip_probability": config.horizontal_flip_probability,
                                "class_weights": json.dumps(config.class_weights, sort_keys=True)})
+            # Only validation metrics are logged as run metrics. Held-out test
+            # results stay in the evaluation artifact so no comparison or search
+            # can rank runs on them; they are read once for a chosen candidate.
             mlflow.log_metrics({"validation_mcc": report["validation"]["mcc"],
-                                "validation_macro_f1": report["validation"]["macro_f1"],
-                                "test_mcc": report["test"]["mcc"],
-                                "test_macro_f1": report["test"]["macro_f1"]})
+                                "validation_macro_f1": report["validation"]["macro_f1"]})
+            for epoch in report.get("history") or ():
+                # Per-epoch validation scores, so a search can stop a weak trial
+                # while it is still running rather than only after it finishes.
+                mlflow.log_metrics({"validation_mcc_epoch": epoch["validation_mcc"],
+                                    "validation_macro_f1_epoch": epoch["validation_macro_f1"]},
+                                   step=epoch["epoch"])
             mlflow.log_artifacts(str(checkpoint.parent), artifact_path="model")
             report["mlflow_run_id"] = run.info.run_id
             (checkpoint.parent.parent / "evaluation.json").write_text(json.dumps(report, indent=2))

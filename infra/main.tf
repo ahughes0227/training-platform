@@ -269,7 +269,9 @@ resource "google_sql_user" "mlflow" {
 
 resource "google_secret_manager_secret" "db_password" {
   secret_id = "${var.name_prefix}-db-password"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
   depends_on = [google_project_service.required]
 }
 
@@ -539,9 +541,9 @@ resource "google_container_cluster" "ray" {
 }
 
 resource "google_container_node_pool" "system" {
-  name     = "system"
-  location = var.gke_zone
-  cluster  = google_container_cluster.ray.name
+  name       = "system"
+  location   = var.gke_zone
+  cluster    = google_container_cluster.ray.name
   node_count = 1
   node_config {
     machine_type = "e2-standard-4"

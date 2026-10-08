@@ -573,14 +573,14 @@ Each entry's **How** names the required enforcing mechanism and responsible comp
 
 #### TP-003 — Deterministic execution authority
 
-- **Requirement:** The system shall give the runtime control plane exclusive authority over admission, job submission, waiting, retries, state, and result collection.
-- **What:** The agent supplies setup suggestions; it does not become a long-running execution controller.
-- **Why:** Training must continue without agent token consumption or an active conversation.
-- **How:** Use durable run storage and GCP Workflows with narrow authenticated adapters; provide the agent no operational submit or polling capability.
+- **Requirement:** The system shall give the runtime control plane exclusive authority over admission, job submission, waiting, retries, state, and result collection. An agent may request a paid run only through that control plane, and only inside a goal envelope a person approved: a stated goal, a total spend cap, and an expiry.
+- **What:** An agent may propose and request runs within its approved envelope. It never becomes the execution controller: it does not wait on a job, drive retries, author run state, or decide a terminal outcome, and it cannot widen its own envelope.
+- **Why:** The manager supplies goals rather than approving each experiment, so iteration cannot depend on a person being present. Training must also continue without agent token consumption or an active conversation, which means the agent cannot be in the execution path.
+- **How:** Use durable run storage and GCP Workflows with narrow authenticated adapters. Every agent request passes the same admission checks as a human one (certified immutable digest, reviewed catalog, per-run cost cap) plus the envelope's remaining budget and expiry. Waiting, retries, reconciliation and terminal state stay with the control plane and the workflow. Role boundaries deny submission to agents outside the experiment-running role.
 - **Enforcement owner:** Project owner and primary integration owner.
-- **Positive evidence — `P-TP-003` (required):** Submit a reviewed draft, close the agent session, and verify runtime-owned execution reaches its recorded terminal outcome.
-- **Negative evidence — `N-TP-003` (required):** Forbidden: an agent directly launches, polls, cancels, or advances a paid run outside the control plane. Attempt via every enabled agent tool and credential; deny operations and prove no unauthorized cloud event occurred.
-- **Current evidence:** E-CONTROL tests adapter behavior; E-WORKFLOW is inspected configuration only. Live agent absence and capability-denial proof is pending. References: [E-CONTROL](#e-control), [E-WORKFLOW](#e-workflow)
+- **Positive evidence — `P-TP-003` (required):** Submit a reviewed draft, close the agent session, and verify runtime-owned execution reaches its recorded terminal outcome. Separately, show an agent-requested run inside an approved envelope reaching its terminal outcome with no agent session open.
+- **Negative evidence — `N-TP-003` (required):** Forbidden: an agent submits outside its approved envelope (no envelope, exhausted budget, expired, or a different goal), bypasses control-plane admission, authors run state, or advances a paid run directly. Also forbidden: an agent widens its own envelope or grants itself the submitting role. Attempt via every enabled agent tool and credential; deny operations and prove no unauthorized cloud event occurred.
+- **Current evidence:** E-CONTROL tests adapter behavior; E-WORKFLOW is inspected configuration only. The goal envelope is not implemented yet, so agent submission is currently bounded only by per-run admission and the role guard. Live agent absence and capability-denial proof is pending. References: [E-CONTROL](#e-control), [E-WORKFLOW](#e-workflow)
 - **Required scope:** `inspection`, `local`, `live_as_applicable`. **Full verification:** pending.
 
 <a id="tp-004"></a>
