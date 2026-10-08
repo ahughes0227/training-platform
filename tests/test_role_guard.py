@@ -31,3 +31,17 @@ def test_runtime_can_edit_dockerfile_but_cannot_submit_vertex():
     assert module.policy_decision("runtime", {
         "tool_name": "run_in_terminal", "tool_input": {"command": "gcloud ai custom-jobs create"}
     })
+
+
+def test_analysis_owns_only_analysis_and_cannot_submit_or_release():
+    assert module.policy_decision("analysis", {
+        "tool_name": "edit_file", "tool_input": {"path": "src/defect_platform/analysis/agent.py"}
+    }) is None
+    assert module.policy_decision("analysis", {
+        "tool_name": "edit_file", "tool_input": {"path": "src/defect_platform/control/controller.py"}
+    })
+    for command in ("defect run submit exp.yaml", "defect release promote r1",
+                    "defect dataset build spec.yaml", "gcloud ai custom-jobs create"):
+        assert module.policy_decision("analysis", {
+            "tool_name": "run_in_terminal", "tool_input": {"command": command}
+        }), command
