@@ -129,7 +129,7 @@ def test_workflow_polling_window_outlives_the_configured_run_hours(tmp_path):
 
 
 def test_submit_persists_before_start_and_idempotent_retry_starts_once(tmp_path):
-    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
+    runtime, experiment, _dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     workflow = FakeWorkflow(store)
     controller = RunController(store=store, runtimes=catalog, datasets=catalog, workflows=workflow, catalogs=catalogs)
@@ -149,7 +149,7 @@ def test_submit_persists_before_start_and_idempotent_retry_starts_once(tmp_path)
 
 
 def test_preflight_blocks_over_budget_before_creating_run(tmp_path):
-    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
+    _runtime, experiment, _dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     controller = RunController(store=store, runtimes=catalog, datasets=catalog, catalogs=catalogs,
                                vertex=FakeVertex())
@@ -161,7 +161,7 @@ def test_preflight_blocks_over_budget_before_creating_run(tmp_path):
 
 
 def test_normal_experiment_reuses_certified_digest_and_failure_has_owner(tmp_path):
-    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
+    runtime, experiment, _dataset, job, catalog, catalogs = fixtures(tmp_path)
     store = SQLiteRunStore(tmp_path / "runs.sqlite")
     vertex = FakeVertex()
     controller = RunController(store=store, runtimes=catalog, datasets=catalog, vertex=vertex, catalogs=catalogs)
@@ -179,7 +179,7 @@ def test_normal_experiment_reuses_certified_digest_and_failure_has_owner(tmp_pat
 
 
 def test_idempotency_key_rejects_changed_config(tmp_path):
-    runtime, experiment, dataset, job, catalog, catalogs = fixtures(tmp_path)
+    _runtime, experiment, _dataset, job, catalog, catalogs = fixtures(tmp_path)
     controller = RunController(store=SQLiteRunStore(tmp_path / "runs.sqlite"),
                                runtimes=catalog, datasets=catalog, vertex=FakeVertex(), catalogs=catalogs)
     controller.submit(experiment=experiment, job=job, idempotency_key="same-key", classes=["crack", "dent"])
@@ -237,11 +237,11 @@ def test_vertex_submission_returns_server_resource_and_recovers_retry(tmp_path, 
 
     client = Client()
     submitter = VertexAiplatformSubmitter(client_factory=lambda location: client)
-    args = dict(run_id="run-1", experiment=experiment, dataset=dataset,
-                runtime=runtime, job=job, output_uri="gs://bucket/runs/run-1",
-                classes=["crack", "dent"], semantic_refs={
+    args = {"run_id": "run-1", "experiment": experiment, "dataset": dataset,
+                "runtime": runtime, "job": job, "output_uri": "gs://bucket/runs/run-1",
+                "classes": ["crack", "dent"], "semantic_refs": {
                     "dataset_semantic_sha256": dataset.semantic_sha256,
-                    "catalog_sha256": "e" * 64})
+                    "catalog_sha256": "e" * 64}}
     assert submitter.submit(**args) == "projects/project/locations/us-central1/customJobs/123"
     assert submitter.submit(**args) == "projects/project/locations/us-central1/customJobs/123"
     assert client.calls == 1

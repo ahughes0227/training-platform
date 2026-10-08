@@ -1,0 +1,214 @@
+# Continuous delivery for the platform services.
+#
+# On every push to main: build the control, MLflow and serving images from a
+# digest-pinned base, push them to Artifact Registry, and record their
+# immutable digests. Nothing is deployed by a push.
+#
+# Deploying is a manual run ("Run workflow", apply = true) that waits for the
+# `production` environment's required reviewers, then applies OpenTofu with
+# the digests this run published.
+#
+# Deliberately out of scope:
+#   - The trainer image. It is built, GPU-validated and certified on a GPU
+#     host (`defect runtime certify`); experiments consume certified digests.
+#   - Model promotion. `defect release promote` stays an explicit human action.
+#
+# Until the repository variables below are set, every job here reports what is
+# missing and stops without failing.
+#   vars.GCP_WORKLOAD_IDENTITY_PROVIDER  projects/NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
+#   vars.GCP_DEPLOY_SERVICE_ACCOUNT      deployer@PROJECT.iam.gserviceaccount.com
+#   vars.GCP_ARTIFACT_REPOSITORY         REGION-docker.pkg.dev/PROJECT/REPOSITORY
+#   vars.PYTHON_BASE_IMAGE               python:3.12-slim@sha256:<verified digest>
+# Deploying additionally needs:
+#   vars.TF_STATE_BUCKET                 encrypted GCS bucket for OpenTofu state
+#   secrets.TF_VARS                      terraform.tfvars contents, without image digests
+#   secrets.TF_DB_PASSWORD               Cloud SQL password (TF_VAR_db_password)
+name: CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "infra/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply infrastructure after publishing (waits for production approval)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  config:
+    name: Check delivery configuration
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - id: check
+        env:
+          WIF: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          REPO: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+          BASE: ${{ vars.PYTHON_BASE_IMAGE }}
+          STATE: ${{ vars.TF_STATE_BUCKET }}
+          HAS_TF_VARS: ${{ secrets.TF_VARS != '' }}
+          HAS_DB_PASSWORD: ${{ secrets.TF_DB_PASSWORD != '' }}
+          APPLY: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
+        run: |
+          missing=()
+          [ -n "$WIF" ]  || missing+=("vars.GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [ -n "$SA" ]   || missing+=("vars.GCP_DEPLOY_SERVICE_ACCOUNT")
+          [ -n "$REPO" ] || missing+=("vars.GCP_ARTIFACT_REPOSITORY")
+          [ -n "$BASE" ] || missing+=("vars.PYTHON_BASE_IMAGE")
+          if [ -n "$BASE" ] && [[ "$BASE" != *@sha256:* ]]; then
+            missing+=("vars.PYTHON_BASE_IMAGE pinned to an @sha256 digest")
+          fi
+          publish=true
+          if [ "${#missing[@]}" -gt 0 ]; then publish=false; fi
+
+          deploy_missing=()
+          [ -n "$STATE" ] || deploy_missing+=("vars.TF_STATE_BUCKET")
+          [ "$HAS_TF_VARS" = "true" ] || deploy_missing+=("secrets.TF_VARS")
+          [ "$HAS_DB_PASSWORD" = "true" ] || deploy_missing+=("secrets.TF_DB_PASSWORD")
+          deploy=false
+          if [ "$APPLY" = "true" ] && [ "$publish" = "true" ] && [ "${#deploy_missing[@]}" -eq 0 ]; then
+            deploy=true
+          fi
+
+          {
+            echo "## Delivery configuration"
+            if [ "$publish" = "true" ]; then
+              echo "Image publishing is configured."
+            else
+              echo "Image publishing is **not configured**; nothing was built or pushed. Set:"
+              printf -- "- \`%s\`\n" "${missing[@]}"
+            fi
+            if [ "$APPLY" = "true" ]; then
+              if [ "$deploy" = "true" ]; then
+                echo "Infrastructure apply requested; it waits for \`production\` approval."
+              else
+                echo "Infrastructure apply was requested but is **not configured**. Set:"
+                printf -- "- \`%s\`\n" "${deploy_missing[@]}"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+
+  publish-images:
+    name: Publish ${{ matrix.image }} image
+    needs: config
+    if: needs.config.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [control, mlflow, serve]
+    steps:
+      - name: Free runner disk space
+        if: matrix.image == 'serve'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build, push and resolve the digest
+        env:
+          REPO: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+          BASE: ${{ vars.PYTHON_BASE_IMAGE }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          gcloud auth configure-docker "${REPO%%/*}" --quiet
+          tag="$REPO/defect-$IMAGE:$GITHUB_SHA"
+          docker build --build-arg "PYTHON_BASE_IMAGE=$BASE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -f "infra/docker/$IMAGE.Dockerfile" -t "$tag" .
+          docker push "$tag"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")"
+          case "$digest" in *@sha256:*) ;; *) echo "no registry digest for $tag" >&2; exit 1 ;; esac
+          mkdir -p digests
+          printf '%s\n' "$digest" > "digests/$IMAGE"
+          echo "- \`$IMAGE\`: \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image }}
+          path: digests/${{ matrix.image }}
+          retention-days: 90
+
+  deploy-infra:
+    name: Apply infrastructure
+    needs: [config, publish-images]
+    if: needs.config.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.10.6"
+          tofu_wrapper: false
+      - name: Configure remote state and inputs
+        env:
+          STATE: ${{ vars.TF_STATE_BUCKET }}
+          TF_VARS: ${{ secrets.TF_VARS }}
+        run: |
+          # The repository has no backend block, so operators can still run
+          # locally; CI supplies the encrypted GCS backend as an override.
+          cat > infra/backend_override.tf <<EOF
+          terraform {
+            backend "gcs" {
+              bucket = "$STATE"
+              prefix = "defect-platform"
+            }
+          }
+          EOF
+          umask 077
+          printf '%s\n' "$TF_VARS" > "$RUNNER_TEMP/deploy.tfvars"
+      - name: Plan and apply with the published digests
+        env:
+          TF_VAR_db_password: ${{ secrets.TF_DB_PASSWORD }}
+        run: |
+          control="$(cat digests/control)"
+          mlflow="$(cat digests/mlflow)"
+          tofu -chdir=infra init -input=false
+          tofu -chdir=infra plan -input=false -out="$RUNNER_TEMP/deploy.tfplan" \
+            -var-file="$RUNNER_TEMP/deploy.tfvars" \
+            -var "control_image_digest=$control" -var "mlflow_image_digest=$mlflow"
+          tofu -chdir=infra apply -input=false "$RUNNER_TEMP/deploy.tfplan"
+          {
+            echo "## Applied"
+            echo "- control: \`$control\`"
+            echo "- mlflow: \`$mlflow\`"
+            echo "- serve (for \`defect release stage --serving-image-digest\`): \`$(cat digests/serve)\`"
+          } >> "$GITHUB_STEP_SUMMARY"

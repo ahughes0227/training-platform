@@ -9,7 +9,7 @@ Train a separate DINOv3 + MLP classifier for each type of inspected object. Each
 
 ## Testing status
 
-The local suite holds 238 tests, including 63 queue cases. Cases needing an optional extra are skipped when it is not installed rather than failed: with only the `dev` extra, 224 pass and 14 skip. Installing every extra is required to exercise the skipped cases. See [queue implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) for the remaining live VM gates. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
+The suite holds 240 tests, including 63 queue cases, and [CI](.github/workflows/ci.yml) runs it on every pull request: once with only the `dev` extra (226 pass, 14 skip because they need an optional extra) and once with every extra installed (all 240 pass). See [CI and delivery](docs/CI_CD.md). See [queue implementation evidence](docs/TRAINING_QUEUE_IMPLEMENTATION.md) for the remaining live VM gates. A published trainer image passed an A100 GPU and GCS handshake on Vertex AI. The updated trainer and semantic contracts need a new image and GPU validation. Full deployment acceptance, pretrained DINOv3 training, cloud MLflow, GKE serving, and Loki delivery remain incomplete. See [testing status](docs/TEST_STATUS.md) and [recorded acceptance evidence](docs/ACCEPTANCE.md).
 
 ## Start here
 

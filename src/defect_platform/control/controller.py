@@ -454,14 +454,14 @@ def _upload_vertex_request(staging_uri: str, run_id: str, request: dict[str, Any
     encoded = json.dumps(request, sort_keys=True)
     try:
         blob.upload_from_string(encoded, content_type="application/json", if_generation_match=0)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any upload error is re-raised unless the request matches
         # A retry after a process restart is valid only if the immutable request is identical.
         try:
             if blob.download_as_text() != encoded:
                 raise ValueError(f"immutable trainer request already exists with different contents: {uri}") from exc
         except ValueError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unreadable existing object surfaces the upload error
             raise exc
     return uri
 

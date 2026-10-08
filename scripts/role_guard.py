@@ -12,7 +12,6 @@ import sys
 from pathlib import PurePosixPath
 from typing import Any
 
-
 OWNED_PREFIXES = {
     "trainer": ("src/defect_platform/trainer/", "tests/test_trainer"),
     "runtime": ("infra/docker/", "Dockerfile", "requirements-runtime", "tests/test_runtime"),
@@ -98,7 +97,7 @@ def policy_decision(role: str, payload: dict[str, Any]) -> str | None:
         return f"{role} role cannot use the {action} platform tool"
     if any(word in tool_name for word in MUTATING_TOOL_WORDS):
         for path in _file_paths(tool_input):
-            if path.startswith("../") or path.startswith("/"):
+            if path.startswith(("../", "/")):
                 return "file write escapes the repository"
             if not any(path.startswith(prefix) for prefix in OWNED_PREFIXES[role]):
                 return f"{role} role does not own {path}"
