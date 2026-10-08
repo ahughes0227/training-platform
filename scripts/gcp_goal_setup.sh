@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One-time GCP setup for running goals on Vertex AI, then the demo goal.
 #
-# Run from the repository root in Cloud Shell (or anywhere gcloud is logged in
-# as a project owner):
+# Run from the repository root in Cloud Shell, or on a Mac or Linux machine
+# where gcloud is logged in as a project owner. Docker is not needed:
+# Cloud Build builds the image.
 #
 #   gcloud config set project YOUR_PROJECT
 #   bash scripts/gcp_goal_setup.sh            # set up, then run the demo
@@ -63,11 +64,29 @@ gcloud projects add-iam-policy-binding "$PROJECT" --condition None \
   --member "serviceAccount:${SERVICE_ACCOUNT}" --role roles/logging.logWriter >/dev/null
 
 step "Pinning the base image ${BASE_IMAGE}"
+# Resolve a Docker Hub tag to its digest through the registry API, so this
+# works without a local Docker daemon. Cloud Build does the actual build.
+resolve_digest() {
+  local image="$1" name tag repo token
+  name="${image%%:*}"; tag="${image#*:}"
+  case "$name" in */*) repo="$name" ;; *) repo="library/$name" ;; esac
+  token="$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"])')"
+  curl -fsSI -H "Authorization: Bearer ${token}" \
+    -H "Accept: application/vnd.oci.image.index.v1+json" \
+    -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+    "https://registry-1.docker.io/v2/${repo}/manifests/${tag}" \
+    | tr -d '\r' | sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: *//p'
+}
 case "$BASE_IMAGE" in
   *@sha256:*) PINNED_BASE="$BASE_IMAGE" ;;
   *)
-    docker pull -q "$BASE_IMAGE" >/dev/null
-    PINNED_BASE="$(docker inspect --format '{{index .RepoDigests 0}}' "$BASE_IMAGE")"
+    DIGEST="$(resolve_digest "$BASE_IMAGE")"
+    case "$DIGEST" in
+      sha256:*) PINNED_BASE="${BASE_IMAGE%%:*}@${DIGEST}" ;;
+      *) echo "Could not resolve a digest for ${BASE_IMAGE}; set TRAINING_BASE_IMAGE=image@sha256:..." >&2
+         exit 1 ;;
+    esac
     ;;
 esac
 echo "$PINNED_BASE"
@@ -108,6 +127,10 @@ step "Running the demo goal on Vertex AI"
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-/tmp/defect-venv}"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"
 export HF_HUB_OFFLINE=1
+if ! command -v uv >/dev/null 2>&1; then
+  echo "The demo needs uv: curl -LsSf https://astral.sh/uv/install.sh | sh  (then re-run this script)" >&2
+  exit 1
+fi
 gcloud auth application-default print-access-token >/dev/null 2>&1 || gcloud auth application-default login
 uv sync --extra train --extra data --extra cloud
 uv run defect goal demo "${DEMO_DIR:-$HOME/goal-demo-vertex}" --vertex vertex.yaml
