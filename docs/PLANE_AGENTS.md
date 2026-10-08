@@ -41,3 +41,29 @@ Every receiver must reject a handoff when any of these fail:
 The Business agent can initiate a cross-plane request, but a rejection cannot
 be overridden by that agent. Policy and exception records are the human control
 surface for future automation.
+
+## Analysis agent
+
+`defect_platform.analysis` implements the Analysis plane. `MlflowRunReader`
+reads a finished run's `evaluation.json` (and optional `flagged_cases.json`)
+into a frozen `RunEvidence` snapshot of validation per-class metrics,
+confusion, and abstention calibration. Test-split results are deliberately not
+read, so analysis never selects on held-out data.
+
+`AnalysisAgent.analyze` is deterministic for a given evidence snapshot and
+`AnalysisPolicy`, and returns at most one handoff:
+
+| Condition | Handoff | Receiver validator |
+| --- | --- | --- |
+| A class below `min_class_recall` has fewer than `min_class_support` validation samples, or `max_label_error_fraction` of its samples are flagged `suspected_label_error` | `data_request` to Data | `validate_data_request` |
+| Weak classes or an abstention review rate above `max_review_rate` with no data issue | `experiment_proposal` to Control | `validate_experiment_proposal` |
+| Every class meets policy, or no admissible change remains | none | — |
+
+A proposal is a complete next `ExperimentConfig` with a derived experiment id.
+It may change only class weights, loss, focal gamma, epochs, learning rate, and
+`model.unfreeze_last_n`; the Control validator rejects any change to the
+dataset version, runtime, weights, catalog, or object as an `authority` issue.
+Acceptance only admits the proposal; Control still applies its own admission
+and budget policy before any run is submitted. The `analysis` role in
+`scripts/role_guard.py` limits edits to `src/defect_platform/analysis/` and
+analysis tests and denies submission, dataset build, and release commands.

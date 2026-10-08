@@ -18,6 +18,7 @@ OWNED_PREFIXES = {
     "runtime": ("infra/docker/", "Dockerfile", "requirements-runtime", "tests/test_runtime"),
     "certifier": ("certifications/", "tests/test_certification"),
     "experiment": ("src/defect_platform/control/", "projects/", "tests/test_control"),
+    "analysis": ("src/defect_platform/analysis/", "tests/test_analysis"),
 }
 
 DENIED_COMMANDS = {
@@ -25,6 +26,7 @@ DENIED_COMMANDS = {
     "runtime": [r"\bdocker\s+(?:image\s+)?push\b", r"\bgcloud\s+ai\s+custom-jobs\s+create\b", r"\bdefect\s+run\s+submit\b", r"\bdefect\s+runtime\s+certify\b"],
     "certifier": [r"\bdocker\s+(?:image\s+)?build\b", r"\bdefect\s+run\s+submit\b"],
     "experiment": [r"\bdocker\s+(?:image\s+)?(?:build|push)\b", r"\bgcloud\s+builds\s+submit\b", r"\bdefect\s+runtime\s+certify\b"],
+    "analysis": [r"\bdocker\s+(?:image\s+)?(?:build|push)\b", r"\bgcloud\s+(?:builds\s+submit|ai\s+custom-jobs\s+create)\b", r"\bdefect\s+(?:run\s+submit|runtime\s+certify|dataset\s+build|release\s+(?:stage|promote|rollback))\b"],
 }
 
 
