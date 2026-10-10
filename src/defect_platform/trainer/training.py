@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import math
@@ -55,6 +56,18 @@ def _resolve_target(label: Any, class_to_idx: dict[str, int], num_classes: int) 
     return target
 
 
+def _gcs_open(url: str, mode: str = "rb", bufsize: int = 8192, **_):
+    """Stream a gs:// shard with the storage client; the trainer image has no gsutil."""
+    if mode != "rb":
+        raise ValueError(f"{url}: shards are opened read-only")
+    try:
+        from google.cloud import storage
+    except ImportError as exc:
+        raise RuntimeError("Reading gs:// shards requires google-cloud-storage") from exc
+    bucket, _, key = url[5:].partition("/")
+    return storage.Client().bucket(bucket).blob(key).open("rb")
+
+
 def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], num_classes: int, preprocessing,
                       training: bool, horizontal_flip_probability: float = 0.5):
     """Build a WebDataset stream; records need an image member and label/class."""
@@ -64,6 +77,10 @@ def _iterable_dataset(shards: list[str], class_to_idx: dict[str, int], num_class
     except ImportError as exc:
         raise RuntimeError("WebDataset training requires webdataset, Pillow and torchvision") from exc
     from .preprocessing import image_transform
+    if any(str(shard).startswith("gs://") for shard in shards):
+        # webdataset's default gs:// handler shells out to gsutil. Its package
+        # exports a gopen function that hides the module, so import it by name.
+        importlib.import_module("webdataset.gopen").gopen_schemes["gs"] = _gcs_open
     transform = image_transform(preprocessing, training=training,
                                 horizontal_flip_probability=horizontal_flip_probability)
 
