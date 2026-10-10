@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -105,5 +106,12 @@ def goal_demo(directory: Path = typer.Argument(..., help="Empty directory for th
     goal_file = write_demo(directory, unreachable=unreachable,
                            gcs_prefix=f"{config.staging_uri.rstrip('/')}/demo" if config else None)
     typer.echo(f"Demo goal written to {goal_file}")
+    # Each demo builds a new dataset version, so an earlier attempt's goal
+    # state cannot resume against it. Keep it for inspection and start fresh.
+    previous = goal_file.parent / "goals" / load_goal_file(goal_file)[0].goal_id
+    if previous.exists():
+        kept = previous.with_name(f"{previous.name}-{datetime.now(UTC):%Y%m%dT%H%M%SZ}")
+        previous.rename(kept)
+        typer.echo(f"An earlier demo attempt was moved to {kept}")
     state, goal_dir = run_goal_file(goal_file, vertex=config)
     typer.echo(_summary(state, goal_dir))
