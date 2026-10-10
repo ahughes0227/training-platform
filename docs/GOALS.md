@@ -5,7 +5,7 @@ You state what a model must achieve and when to stop trying. The platform trains
 - **Model delivered:** the model package, plus a scorecard comparing each target with what was achieved.
 - **Goal not met:** a report covering why it stopped, the closest result, which classes fell short and what they were mistaken for, what was tried, and what would most likely reach the goal.
 
-Goals run on this machine today. Running each experiment on Vertex AI instead is the next step; the loop, the goal and the reports stay the same.
+Each experiment trains on this machine, or on Vertex AI with `--vertex`. The loop, the goal and the reports are the same either way.
 
 ## Try it
 
@@ -18,6 +18,34 @@ uv run defect goal demo /tmp/goal-demo-hard --unreachable    # two classes look 
 ```
 
 Each prints the runs and the path of `REPORT.md`.
+
+## Run it on Vertex AI
+
+`scripts/gcp_goal_setup.sh` does the one-time setup in a GCP project, then runs the demo with each experiment as a Vertex AI job. Run it from the repository root in Cloud Shell, or anywhere `gcloud` is logged in as a project owner. Billing must be on. It is safe to re-run.
+
+```bash
+gcloud config set project YOUR_PROJECT
+bash scripts/gcp_goal_setup.sh
+```
+
+It enables the APIs, then creates a bucket, an Artifact Registry repository, and a `defect-trainer` service account for the jobs to run as. It builds the trainer image with Cloud Build and writes `vertex.yaml`. The demo jobs run on a CPU machine (`n1-standard-4`), so no GPU quota is needed. Each job takes a few minutes to start.
+
+`vertex.yaml` is what `--vertex` reads:
+
+```yaml
+project: my-project
+region: us-central1
+service_account: defect-trainer@my-project.iam.gserviceaccount.com
+staging_uri: gs://my-project-defect-goals/goals   # requests and run outputs
+image_digest: us-central1-docker.pkg.dev/my-project/defect-platform/defect-trainer@sha256:...
+machine_type: n1-standard-4
+accelerator_type: NVIDIA_L4    # optional, with accelerator_count
+accelerator_count: 1
+runtime: { ... }               # a certified runtime record, for releasable models
+allow_uncertified_image: true  # or a development image, for evaluation only
+```
+
+With `--vertex`, the dataset and the backbone weights must be in GCS. Build the dataset with a `gs://` output and upload the weights. The image must be pinned by digest. Models count as releasable only when they are trained on a certified runtime. The report says which runtime trained the model. A goal that is interrupted re-attaches to a running job instead of starting a second one. Each attempt at a goal (a goal and dataset pair) stages its requests and outputs in its own folder under `staging_uri`, so a rebuilt dataset or a changed goal never collides with an earlier attempt's runs.
 
 ## Your own goal
 

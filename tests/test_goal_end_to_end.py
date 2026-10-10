@@ -25,6 +25,11 @@ def test_demo_goal_is_met_and_unreachable_demo_explains_why(tmp_path, monkeypatc
     assert scorecard["outcome"] == "model_delivered"
     assert (tmp_path / "demo" / "goals" / "demo" / "deliverable" / "model" / "model.pt").exists()
 
+    again = cli.invoke(app, ["goal", "demo", str(tmp_path / "demo")])
+    assert again.exit_code == 0, again.output
+    assert "earlier demo attempt was moved" in again.output
+    assert "model delivered" in again.output
+
     unmet = cli.invoke(app, ["goal", "demo", str(tmp_path / "hard"), "--unreachable"])
     assert unmet.exit_code == 0, unmet.output
     assert "goal not met" in unmet.output

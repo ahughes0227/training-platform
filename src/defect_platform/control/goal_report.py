@@ -77,12 +77,13 @@ def write_model_delivered(runner: GoalRunner, best: GoalRunRecord) -> None:
         "test": {"mcc": test["mcc"], "macro_f1": test["macro_f1"], "accuracy": test["accuracy"],
                  "per_class": test["per_class"]},
         "runs": len(runner.state.runs),
+        "executed_on": best.executed_on, "releasable": best.releasable,
     }
     (runner.dir / "scorecard.json").write_text(json.dumps(scorecard, indent=2))
     lines = [
         f"# Goal {goal.goal_id}: model delivered", "",
         f"{best.run_id} met every target on validation data after {len(runner.state.runs)} run(s).",
-        f"The model is in `{package / 'model'}`, ready to stage for release.", "",
+        f"The model is in `{package / 'model'}`. {_release_note(best)}", "",
         "## Targets", "", *[f"- {target}" for target in _targets(goal)], "",
         "## Result on held-out test data", "",
         "The test split was read once, for this model only, after it was chosen on validation data.", "",
@@ -91,6 +92,13 @@ def write_model_delivered(runner: GoalRunner, best: GoalRunRecord) -> None:
         "## Runs", "", *_runs_table(runner), "",
     ]
     (runner.dir / "REPORT.md").write_text("\n".join(lines))
+
+
+def _release_note(run: GoalRunRecord) -> str:
+    if run.releasable:
+        return f"It was trained on {run.executed_on} and is ready to stage for release."
+    return (f"It was trained on {run.executed_on}, not a certified runtime image, so it is "
+            "for evaluation only and cannot be staged for release.")
 
 
 def _recommendations(runner: GoalRunner, best: GoalRunRecord | None) -> list[str]:

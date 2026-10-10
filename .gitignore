@@ -19,3 +19,4 @@ build/
 *.tfplan
 infra/backend_override.tf
 infra/terraform.tfvars
+vertex.yaml
