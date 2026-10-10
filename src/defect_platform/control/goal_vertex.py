@@ -13,6 +13,7 @@ the goal report records it, because such a model is not releasable.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -100,15 +101,28 @@ def upload_directory(source: Path, uri: str) -> None:
             bucket.blob(key).upload_from_filename(str(path))
 
 
+def attempt_key(goal_sha256: str, dataset: DatasetVersion) -> str:
+    """Name one attempt at a goal, so its requests, outputs and jobs never mix with another's.
+
+    Run ids repeat across attempts (every attempt starts at run01), and trainer
+    requests in GCS are immutable, so each goal and dataset pair gets its own
+    staging folder. Resuming the same goal on the same dataset finds the same one.
+    """
+    return hashlib.sha256(f"{goal_sha256}:{dataset.sha256}".encode()).hexdigest()[:12]
+
+
 class VertexExecutor:
     def __init__(self, config: VertexGoalConfig, dataset: DatasetVersion, classes: list[str], *,
-                 client: Any = None, sleep: Callable[[float], None] = time.sleep,
+                 attempt: str, client: Any = None, sleep: Callable[[float], None] = time.sleep,
                  upload_request: Callable[[str, str, dict], str] = _upload_vertex_request,
                  download: Callable[[str, Path], None] = download_prefix,
                  semantic_refs: dict[str, str] | None = None):
         if not dataset.root_uri.startswith("gs://"):
             raise ValueError("Vertex runs need the dataset in GCS; build it with a gs:// output_uri")
+        if not re.fullmatch(r"[a-z0-9]{1,16}", attempt):
+            raise ValueError("attempt must be a short lowercase key; use attempt_key()")
         self.config = config
+        self.attempt = attempt
         self.dataset = dataset
         self.classes = list(classes)
         self.client = client
@@ -135,8 +149,12 @@ class VertexExecutor:
                                   "catalog_sha256": manifest.catalog.sha256}
         return self.semantic_refs
 
+    @property
+    def staging_uri(self) -> str:
+        return f"{self.config.staging_uri.rstrip('/')}/{self.attempt}"
+
     def output_uri(self, experiment: ExperimentConfig) -> str:
-        return f"{self.config.staging_uri.rstrip('/')}/runs/{experiment.experiment_id}"
+        return f"{self.staging_uri}/runs/{experiment.experiment_id}"
 
     def _request(self, experiment: ExperimentConfig) -> dict[str, Any]:
         request = {"experiment": experiment.model_dump(mode="json"),
@@ -169,7 +187,8 @@ class VertexExecutor:
         run_id = experiment.experiment_id
         if not experiment.model.weights_uri.startswith("gs://"):
             raise ValueError("Vertex runs need the backbone weights in GCS (a gs:// weights_uri)")
-        display_name = "defect-goal-" + re.sub(r"[^a-z0-9-]", "-", run_id.lower())[:100]
+        display_name = ("defect-goal-" + re.sub(r"[^a-z0-9-]", "-", run_id.lower())[:100]
+                        + f"-{self.attempt}")
         client = self._client()
         parent = f"projects/{self.config.project}/locations/{self.config.region}"
         # A goal resumed after a crash re-attaches to its live or finished job
@@ -179,12 +198,13 @@ class VertexExecutor:
             if job.display_name == display_name and _state(job) not in (
                     TERMINAL_STATES - {"JOB_STATE_SUCCEEDED"}):
                 return str(job.name)
-        request_uri = self.upload_request(self.config.staging_uri, run_id, self._request(experiment))
+        request_uri = self.upload_request(self.staging_uri, run_id, self._request(experiment))
         from google.cloud import aiplatform_v1
 
         created = client.create_custom_job(parent=parent, custom_job=aiplatform_v1.CustomJob(
             display_name=display_name, job_spec=self._job_spec(request_uri, run_id),
-            labels={"defect-goal-run": re.sub(r"[^a-z0-9_-]", "-", run_id.lower())[:63]}))
+            labels={"defect-goal-run": re.sub(r"[^a-z0-9_-]", "-", run_id.lower())[:63],
+                    "defect-goal-attempt": self.attempt}))
         if not created.name:
             raise RuntimeError("Vertex created a CustomJob without returning its resource name")
         return str(created.name)

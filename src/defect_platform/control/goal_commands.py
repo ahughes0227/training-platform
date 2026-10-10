@@ -13,7 +13,7 @@ import yaml
 from defect_platform.contracts import DatasetVersion, ExperimentConfig
 from defect_platform.control.goal import Goal
 from defect_platform.control.goal_runner import STATE_FILE, GoalRunner, GoalState, LocalExecutor
-from defect_platform.control.goal_vertex import VertexExecutor, VertexGoalConfig
+from defect_platform.control.goal_vertex import VertexExecutor, VertexGoalConfig, attempt_key
 
 goal_app = typer.Typer(help="Start a goal and track it to a model or a report.", no_args_is_help=True)
 
@@ -61,7 +61,8 @@ def run_goal_file(goal_file: Path, goal_dir: Path | None = None,
     goal_dir = goal_dir or goal_file.parent / "goals" / goal.goal_id
     classes = load_dataset_semantics(dataset).catalog.labels
     try:
-        executor = (VertexExecutor(vertex, dataset, classes) if vertex
+        executor = (VertexExecutor(vertex, dataset, classes,
+                                   attempt=attempt_key(goal.sha256, dataset)) if vertex
                     else LocalExecutor(dataset, classes))
         runner = GoalRunner(goal, experiment, dataset, classes, goal_dir, executor)
     except ValueError as exc:

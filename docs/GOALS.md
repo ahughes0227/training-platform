@@ -45,7 +45,7 @@ runtime: { ... }               # a certified runtime record, for releasable mode
 allow_uncertified_image: true  # or a development image, for evaluation only
 ```
 
-With `--vertex`, the dataset and the backbone weights must be in GCS. Build the dataset with a `gs://` output and upload the weights. The image must be pinned by digest. Models count as releasable only when they are trained on a certified runtime. The report says which runtime trained the model. A goal that is interrupted re-attaches to a running job instead of starting a second one.
+With `--vertex`, the dataset and the backbone weights must be in GCS. Build the dataset with a `gs://` output and upload the weights. The image must be pinned by digest. Models count as releasable only when they are trained on a certified runtime. The report says which runtime trained the model. A goal that is interrupted re-attaches to a running job instead of starting a second one. Each attempt at a goal (a goal and dataset pair) stages its requests and outputs in its own folder under `staging_uri`, so a rebuilt dataset or a changed goal never collides with an earlier attempt's runs.
 
 ## Your own goal
 

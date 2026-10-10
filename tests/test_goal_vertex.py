@@ -73,7 +73,8 @@ def _executor(jobs, config=None, uploads=None):
         (destination / "model").mkdir(parents=True, exist_ok=True)
         (destination / "evaluation.json").write_text(json.dumps({"output_uri": uri}))
 
-    return VertexExecutor(config or _config(), _dataset(), ["ok", "scratch"], client=jobs,
+    return VertexExecutor(config or _config(), _dataset(), ["ok", "scratch"], attempt="a1",
+                          client=jobs,
                           sleep=lambda _: None, upload_request=upload, download=download,
                           semantic_refs={"dataset_semantic_sha256": "e" * 64,
                                          "catalog_sha256": "f" * 64})
@@ -85,7 +86,7 @@ def test_cpu_job_runs_waits_and_copies_results_back(tmp_path):
     executor = _executor(jobs, uploads=uploads)
     report = executor.run(_experiment(), tmp_path / "run")
 
-    assert report["output_uri"] == "gs://bucket/goals/runs/panel-run01"
+    assert report["output_uri"] == "gs://bucket/goals/a1/runs/panel-run01"
     assert report["vertex_job_name"].endswith("customJobs/1")
     assert (tmp_path / "run" / "evaluation.json").exists()
     spec = jobs.created[0][1].job_spec.worker_pool_specs[0]
@@ -125,7 +126,7 @@ def test_a_failed_job_raises_with_its_vertex_error(tmp_path):
 
 def test_a_resumed_goal_reattaches_to_its_running_job(tmp_path):
     live = SimpleNamespace(name="projects/p/locations/us-central1/customJobs/9",
-                           display_name="defect-goal-panel-run01",
+                           display_name="defect-goal-panel-run01-a1",
                            state=SimpleNamespace(name="JOB_STATE_RUNNING"))
     jobs = FakeJobs(["JOB_STATE_SUCCEEDED"], existing=[live])
     report = _executor(jobs).run(_experiment(), tmp_path / "run")
@@ -135,7 +136,7 @@ def test_a_resumed_goal_reattaches_to_its_running_job(tmp_path):
 
 def test_vertex_runs_need_data_and_weights_in_gcs(tmp_path):
     with pytest.raises(ValueError, match="dataset in GCS"):
-        VertexExecutor(_config(), _dataset("/local/v1"), ["ok", "scratch"])
+        VertexExecutor(_config(), _dataset("/local/v1"), ["ok", "scratch"], attempt="a1")
     with pytest.raises(ValueError, match="weights in GCS"):
         _executor(FakeJobs(["JOB_STATE_SUCCEEDED"])).run(_experiment("/local/w"), Path(tmp_path))
 
@@ -147,3 +148,24 @@ def test_config_requires_certification_or_an_explicit_development_image():
         _config(accelerator_type="NVIDIA_T4")
     with pytest.raises(ValueError):
         _config(image_digest="us-docker.pkg.dev/p/r/trainer:latest")
+
+
+def test_each_goal_attempt_stages_and_names_its_jobs_apart(tmp_path):
+    from defect_platform.control.goal_vertex import attempt_key
+
+    first, again = attempt_key("1" * 64, _dataset()), attempt_key("1" * 64, _dataset())
+    rebuilt = attempt_key("1" * 64, _dataset().model_copy(update={"sha256": "9" * 64}))
+    assert first == again != rebuilt
+
+    # A finished job from an earlier attempt with the same run id is not reused.
+    old = SimpleNamespace(name="projects/p/locations/us-central1/customJobs/3",
+                          display_name="defect-goal-panel-run01-a0",
+                          state=SimpleNamespace(name="JOB_STATE_SUCCEEDED"))
+    jobs = FakeJobs(["JOB_STATE_SUCCEEDED"], existing=[old])
+    uploads = []
+    report = _executor(jobs, uploads=uploads).run(_experiment(), tmp_path / "run")
+    assert report["vertex_job_name"].endswith("customJobs/1")
+    custom_job = jobs.created[0][1]
+    assert custom_job.display_name == "defect-goal-panel-run01-a1"
+    assert custom_job.labels["defect-goal-attempt"] == "a1"
+    assert uploads[0]["output_uri"].startswith("gs://bucket/goals/a1/")
